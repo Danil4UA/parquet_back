@@ -12,11 +12,14 @@ const productsControllers = {
         const localizedName = isValidLanguage(language) ? product.name[language] : product.name.en;
 
         const localizedDescription = isValidLanguage(language) ? product.description[language] : product.description.en;
-
+        const localizedDetailedDescription = isValidLanguage(language)
+          ? product.detailedDescription[language]
+          : product.detailedDescription.en;
         return {
           ...product.toObject(),
           name: localizedName,
-          description: localizedDescription
+          description: localizedDescription,
+          detailedDescription: localizedDetailedDescription
         };
       });
 
@@ -33,10 +36,14 @@ const productsControllers = {
       if (product) {
         const localizedName = isValidLanguage(language) ? product.name[language] : product.name.en;
         const localizedDescription = isValidLanguage(language) ? product.description[language] : product.description.en;
+        const localizedDetailedDescription = isValidLanguage(language)
+          ? product.detailedDescription[language]
+          : product.detailedDescription.en;
         const localizedProduct = {
           ...product.toObject(),
           name: localizedName,
-          description: localizedDescription
+          description: localizedDescription,
+          detailedDescription: localizedDetailedDescription
         };
         res.status(200).json(localizedProduct);
       } else {
@@ -64,11 +71,14 @@ const productsControllers = {
         const localizedName = isValidLanguage(language) ? product.name[language] : product.name.en;
 
         const localizedDescription = isValidLanguage(language) ? product.description[language] : product.description.en;
-
+        const localizedDetailedDescription = isValidLanguage(language)
+          ? product.detailedDescription[language]
+          : product.detailedDescription.en;
         return {
           ...product.toObject(),
           name: localizedName,
-          description: localizedDescription
+          description: localizedDescription,
+          detailedDescription: localizedDetailedDescription
         };
       });
 

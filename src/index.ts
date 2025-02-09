@@ -12,7 +12,13 @@ app.use(express.json());
 app.use(
   cors({
     credentials: true,
-    origin: [`${process.env.FRONT_URL || "http://localhost:3000"}`]
+    origin: [
+      `${
+        process.env.FRONT_URL
+        // ||
+        // "http://localhost:3000"
+      }`
+    ]
   })
 );
 

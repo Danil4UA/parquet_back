@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   productId: string;
   name: LocalizedString;
   description: LocalizedString;
+  detailedDescription: LocalizedString;
   price: string;
   images: string[];
   category: string;
@@ -36,6 +37,10 @@ const ProductSchema: Schema = new Schema(
     description: {
       type: LocalizedStringSchema,
       required: true
+    },
+    detailedDescription: {
+      type: LocalizedStringSchema,
+      require: true
     },
     price: { type: String, required: true },
     images: { type: [String], required: true },
