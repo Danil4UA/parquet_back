@@ -12,13 +12,15 @@ app.use(express.json());
 app.use(
   cors({
     credentials: true,
-    origin: [
-      `${
-        process.env.FRONT_URL
-        // ||
-        // "http://localhost:3000"
-      }`
-    ]
+    origin: (origin, callback) => {
+      const allowedOrigins = [process.env.FRONT_URL_RENDER, process.env.FRONT_URL_CUSTOM];
+
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    }
   })
 );
 

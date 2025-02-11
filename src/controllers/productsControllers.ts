@@ -7,7 +7,6 @@ const productsControllers = {
     try {
       const language = req.query.language?.toString() || "en";
       const products = await Product.find();
-
       const localizedProducts = products.map((product) => {
         const localizedName = isValidLanguage(language) ? product.name[language] : product.name.en;
 
