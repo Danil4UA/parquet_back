@@ -54,18 +54,37 @@ const productsControllers = {
   },
 
   getProductByCategory: async (req: Request, res: Response) => {
-    const { category } = req.query;
+    const { category, search, color, type } = req.query;
     const language = req.query.language?.toString() || "en";
     const page = parseInt(req.query.page?.toString() || "1");
     const limit = parseInt(req.query.limit?.toString() || "16"); 
 
     try {
-      let query = {};
+      let query: Record<string, any> = {};
       if (category === "all") {
       } else if (category === "sales") {
         query = { discount: { $gt: 0 } };
       } else if (category) {
         query = { category: { $regex: new RegExp(category as string, "i") } };
+      }
+
+      if (color) {
+        query.color = { $regex: new RegExp(color as string, "i") };
+      }
+      
+      if (type) {
+        query.type = { $regex: new RegExp(type as string, "i") };
+      }
+      
+      if (search) {
+        const searchRegex = new RegExp(search as string, "i");
+        query.$or = [
+          { "name.en": searchRegex },
+          { "name.ru": searchRegex },
+          { "name.he": searchRegex },
+          { model: searchRegex },
+          { type: searchRegex }
+        ];
       }
 
         const totalProducts = await Product.countDocuments(query);
@@ -99,6 +118,24 @@ const productsControllers = {
       });
       } catch (error) {
       console.error("Error fetching products:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  getFilterOptions: async (req: Request, res: Response) => {
+    try {
+      const colors = await Product.distinct("color");
+      
+      const types = await Product.distinct("type");
+      
+      const categories = await Product.distinct("category");
+      
+      res.status(200).json({
+        colors: colors.filter(Boolean),
+        types: types.filter(Boolean),
+        categories: categories.filter(Boolean)
+      });
+    } catch (error) {
+      console.error("Error fetching filter options:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
