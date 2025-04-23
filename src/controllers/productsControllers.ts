@@ -69,13 +69,15 @@ const productsControllers = {
       }
 
       if (color) {
-        query.color = { $regex: new RegExp(color as string, "i") };
+        const colors = (color as string).split(',');
+        query.color = { $in: colors.map(c => new RegExp(c, "i")) };
       }
-      
+
       if (type) {
-        query.type = { $regex: new RegExp(type as string, "i") };
+        const types = (type as string).split(',');
+        query.type = { $in: types.map(t => new RegExp(t, "i")) };
       }
-      
+            
       if (search) {
         const searchRegex = new RegExp(search as string, "i");
         query.$or = [

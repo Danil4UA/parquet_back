@@ -4,6 +4,8 @@ import cors from "cors";
 import connectDB from "./config/db";
 import productsRoutes from "./routes/productsRoutes";
 import orderRoutes from "./routes/orderRoutes";
+import userRoutes from "./routes/userRoutes";
+
 connectDB();
 const app = express();
 const PORT = process.env.PORT;
@@ -13,7 +15,10 @@ app.use(
   cors({
     credentials: true,
     origin: (origin, callback) => {
-      const allowedOrigins = [process.env.FRONT_URL_RENDER, process.env.FRONT_URL_CUSTOM];
+      const allowedOrigins = [
+        process.env.FRONT_URL_RENDER, 
+        process.env.FRONT_URL_CUSTOM
+      ];
 
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -26,6 +31,7 @@ app.use(
 
 app.use("/api/products", productsRoutes);
 app.use("/api/order", orderRoutes);
+app.use("/api/user", userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
