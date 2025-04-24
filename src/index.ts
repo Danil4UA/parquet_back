@@ -5,6 +5,7 @@ import connectDB from "./config/db";
 import productsRoutes from "./routes/productsRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import userRoutes from "./routes/userRoutes";
+import adminRoutes from "./routes/adminRoutes";
 
 connectDB();
 const app = express();
@@ -32,6 +33,8 @@ app.use(
 app.use("/api/products", productsRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

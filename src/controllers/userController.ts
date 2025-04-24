@@ -1,7 +1,7 @@
 import User from "../model/userModel"
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Application, Request, Response } from 'express';
+import { Request, Response } from 'express';
 
 const userController = {
   register: async (req: Request, res: Response): Promise<any> => {
