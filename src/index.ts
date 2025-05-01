@@ -6,7 +6,7 @@ import productsRoutes from "./routes/productsRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import userRoutes from "./routes/userRoutes";
 import adminRoutes from "./routes/adminRoutes";
-import photoRoutes from "./routes/photoRoutes";
+import photoRoutes from "./routes/photoRoutes.js";
 
 connectDB();
 const app = express();

@@ -1,10 +1,10 @@
-import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import s3Client from "../config/s3";
-import multer from "multer";
-import { v4 as uuidv4 } from "uuid";
-import path from "path";
-import sharp from "sharp";
+const { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const s3Client = require("../config/s3");
+const multer = require("multer");
+const { v4: uuidv4 } = require("uuid");
+const path = require("path");
+const sharp = require("sharp");
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
