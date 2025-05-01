@@ -40,26 +40,32 @@ const adminController = {
     },
       
 
-    deleteProduct: async (req: Request, res: Response): Promise<any> => {
-        try {
-          const { id } = req.params;
-          
-          const deletedProduct = await Product.findByIdAndDelete(id);
-          
-          if (!deletedProduct) {
-            return res.status(404).json({ message: 'Product not found' });
-          }
-          
-          res.status(200).json({
-            message: 'Product deleted successfully',
-            product: deletedProduct
-          });
-        } catch (error) {
-          console.error('Error deleting product:', error);
-          res.status(500).json({ message: 'Server error' });
+    deleteProducts: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const idsParam = req.query.ids as string;
+        
+        if (!idsParam) {
+          return res.status(400).json({ message: 'No product IDs provided' });
         }
+        const productIds = idsParam.split(',').filter(id => id.trim().length > 0);
+        
+        if (productIds.length === 0) {
+          return res.status(400).json({ message: 'No valid product IDs provided' });
+        }
+        const deleteResult = await Product.deleteMany({ _id: { $in: productIds } });
+        
+        if (deleteResult.deletedCount === 0) {
+          return res.status(404).json({ message: 'No products found with the provided IDs' });
+        }
+        
+        res.status(200).json({
+          message: `Successfully deleted ${deleteResult.deletedCount} products`,
+          deletedCount: deleteResult.deletedCount
+        });
+      } catch (error) {
+        res.status(500).json({ message: 'Server error' });
       }
-
+    },
 }
 
 export default adminController

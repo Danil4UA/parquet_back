@@ -56,7 +56,7 @@ const productsControllers = {
   getProductByCategory: async (req: Request, res: Response) => {
     const { category, search, color, type } = req.query;
     const language = req.query.language?.toString() || "en";
-    const page = parseInt(req.query.page?.toString() || "1");
+    const page = Math.max(1, parseInt(req.query.page?.toString() || "1"));
     const limit = parseInt(req.query.limit?.toString() || "16"); 
 
     try {
@@ -90,8 +90,9 @@ const productsControllers = {
       }
 
         const totalProducts = await Product.countDocuments(query);
+        const skip = Math.max(0, (page - 1) * limit);
         const products = await Product.find(query)
-          .skip((page - 1) * limit)
+          .skip(skip)
           .limit(limit);
 
         const localizedProducts = products.map((product) => {
