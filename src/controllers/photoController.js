@@ -5,6 +5,7 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 const sharp = require("sharp");
+const Photos = require("../model/Photos")
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -62,6 +63,8 @@ const getOptimizedContentType = (originalFormat) => {
 const photoController = {
     uploadPhoto: async (req, res) => {
       try {
+        const productId = req.body.productId || null;
+
         const fileExtension = path.extname(req.file.originalname);
         const fileName = `${uuidv4()}${fileExtension}`;
         
@@ -83,9 +86,31 @@ const photoController = {
         const originalSize = req.file.buffer.length;
         const optimizedSize = optimizedBuffer.length;
         const savingsPercent = ((originalSize - optimizedSize) / originalSize * 100).toFixed(2);
-  
+        
+
+        const photo = new Photos ({
+          file_url: fileUrl,
+          original_filename: req.file.originalname,
+          file_name: fileName,
+          content_type: optimizedContentType,
+          file_size: {
+            original: originalSize,
+            optimized: optimizedSize,
+            savedPercent: savingsPercent
+          },
+          uploaded_at: new Date(),
+          status: 'active'
+        });
+
+        if (productId) {
+          photo.product_id = productId;
+        }
+
+        const savedPhoto = await photo.save();
+
         res.status(200).json({
           success: true,
+          id: savedPhoto._id,
           fileName,
           fileUrl,
           optimization: {
@@ -157,6 +182,8 @@ const photoController = {
 
       uploadMultiplePhotos: async (req, res) => {
         try {
+          const productId = req.body.productId || null;
+
           if (!req.files || req.files.length === 0) {
             return res.status(400).json({
               success: false,
@@ -191,11 +218,33 @@ const photoController = {
             
             const originalSize = file.buffer.length;
             const optimizedSize = optimizedBuffer.length;
-            
+            const savingsPercent = ((originalSize - optimizedSize) / originalSize * 100).toFixed(2);
+
             totalOriginalSize += originalSize;
             totalOptimizedSize += optimizedSize;
             
+            const photo = new Photos({
+              file_url: fileUrl,
+              original_filename: file.originalname,
+              file_name: fileName,
+              content_type: optimizedContentType,
+              file_size: {
+                original: originalSize,
+                optimized: optimizedSize,
+                savedPercent: savingsPercent
+              },
+              uploaded_at: new Date(),
+              status: 'active'
+            });
+      
+            if (productId) {
+              photo.product_id = productId;
+            }
+      
+            const savedPhoto = await photo.save();
+
             uploadResults.push({
+              id: savedPhoto._id,
               originalName: file.originalname,
               fileName,
               fileUrl,
