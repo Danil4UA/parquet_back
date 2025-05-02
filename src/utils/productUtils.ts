@@ -50,12 +50,12 @@ export const sanitizeProductData = (reqBody: any, isNew = false): { data: any; e
   
   if ('images' in reqBody) {
     if (Array.isArray(reqBody.images)) {
-      sanitizedData.images = reqBody.images.filter((img: string) => img && img !== '');
+      sanitizedData.images = reqBody.images.filter((img: string) => img && img.trim() !== '');
       
-      if (isNew && sanitizedData.images.length === 0) {
-        errors.push('At least one image is required');
+      if (sanitizedData.images.length === 0) {
+        errors.push('At least one valid image is required. Empty image URLs are not allowed.');
       }
-    } else if (isNew) {
+    } else {
       errors.push('images must be an array');
     }
   } else if (isNew) {

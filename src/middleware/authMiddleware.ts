@@ -27,7 +27,8 @@ export const authenticateToken = (
     (req as AuthRequest).user = decoded; 
     next();
   } catch (error) {
-    res.status(403).json({ message: 'Invalid token.' });
-    return; 
-  }
+    console.error('JWT Error:', error);
+    res.status(403).json({ message: 'Invalid token.'});
+    return;
+    }
 }

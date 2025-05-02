@@ -3,6 +3,30 @@ import Product from "../model/Product";
 import { sanitizeProductData } from "../utils/productUtils";
 
 const adminController = {
+    getFullProduct: async (req: Request, res: Response): Promise<any> => {
+      try {
+          const { id } = req.params;
+          
+          if (!id) {
+              return res.status(400).json({ message: 'Product ID is required' });
+          }
+          
+          const product = await Product.findById(id);
+          
+          if (!product) {
+              return res.status(404).json({ message: 'Product not found' });
+          }
+          
+          res.status(200).json({
+              message: 'Product retrieved successfully',
+              product
+          });
+      } catch (error) {
+          console.error('Error retrieving product:', error);
+          res.status(500).json({ message: 'Server error' });
+      }
+    },
+
     createProduct: async () => {
 
     },
