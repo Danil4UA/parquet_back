@@ -27,8 +27,32 @@ const adminController = {
       }
     },
 
-    createProduct: async () => {
+    createProduct: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const { data, errors } = sanitizeProductData(req.body, true);
 
+        if (errors.length > 0) {
+          return res.status(400).json({ 
+            message: 'Validation failed',
+            errors 
+          });
+        }
+
+        const product = new Product ({
+          ...data,
+          createdAt: new Date(),
+        })
+
+        const saveProduct = await product.save();
+        
+        res.status(200).json({
+          message: 'Product created successfully',
+          product: saveProduct
+        });
+      } catch(error) {
+        console.error('Error creating product:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
     },
 
     editProduct: async (req: Request, res: Response): Promise<any> => {
@@ -67,15 +91,16 @@ const adminController = {
     deleteProducts: async (req: Request, res: Response): Promise<any> => {
       try {
         const idsParam = req.query.ids as string;
-        
         if (!idsParam) {
           return res.status(400).json({ message: 'No product IDs provided' });
         }
+        
         const productIds = idsParam.split(',').filter(id => id.trim().length > 0);
         
         if (productIds.length === 0) {
           return res.status(400).json({ message: 'No valid product IDs provided' });
         }
+        
         const deleteResult = await Product.deleteMany({ _id: { $in: productIds } });
         
         if (deleteResult.deletedCount === 0) {
