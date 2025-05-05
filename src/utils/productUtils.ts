@@ -31,7 +31,7 @@ export const sanitizeProductData = (reqBody: any, isNew = false): { data: any; e
           }
         }
         
-        if (isNew && (field === 'name' || field === 'description')) {
+        if (isNew && (field === 'name' || field === 'detailedDescription')) {
           for (const lang of ['en', 'ru', 'he']) {
             if (!sanitizedData[field] || !sanitizedData[field][lang]) {
               errors.push(`${field}.${lang} is required`);

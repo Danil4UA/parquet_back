@@ -41,8 +41,9 @@ const ProductSchema: Schema = new Schema(
       required: true
     },
     description: {
-      type: LocalizedStringSchema,
-      required: true
+      en: { type: String },
+      ru: { type: String },
+      he: { type: String }
     },
     detailedDescription: {
       type: LocalizedStringSchema,
@@ -51,11 +52,11 @@ const ProductSchema: Schema = new Schema(
     price: { type: Number, required: true },
     images: { type: [String], required: true },
     category: { type: String, required: true },
-    stock: { type: Number, required: true },
+    stock: { type: Number, required: false },
     discount: { type: Number, default: 0 },
     isAvailable: { type: Boolean, default: true },
     color: { type: String, required: true },
-    type: { type: String, required: true },
+    type: { type: String, required: false },
     material: { type: String, required: false },
     countryOfOrigin: { type: String, required: false },
     boxCoverage: { type: Number, required: false },
