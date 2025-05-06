@@ -6,7 +6,7 @@ const validProductFields = [
   'name', 'description', 'price', 'images', 'category', 
   'stock', 'discount', 'isAvailable', 'color', 'model', 
   'type', 'finish', 'width', 'length', 'thickness', 
-  'countryOfOrigin', 'detailedDescription'
+  'countryOfOrigin', 'detailedDescription', "boxCoverage"
 ];
 
 const translatableFields = ['name', 'description', 'detailedDescription'];
