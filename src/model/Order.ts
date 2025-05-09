@@ -3,10 +3,10 @@ import mongoose, { Schema, Document } from "mongoose";
 interface IOrder extends Document {
   name: string;
   lastName: string;
-  address: string;
+  address?: string;
   apartment?: string;
-  postalCode: string;
-  city: string;
+  postalCode?: string;
+  city?: string;
   phoneNumber: string;
   deliveryMethod: string;
   cartItems: {
@@ -21,10 +21,10 @@ const orderSchema: Schema<IOrder> = new mongoose.Schema(
   {
     name: { type: String, required: true },
     lastName: { type: String, required: true },
-    address: { type: String, required: true },
-    apartment: { type: String },
-    postalCode: { type: String, required: true },
-    city: { type: String, required: true },
+    address: { type: String, required: false },
+    apartment: { type: String, required: false },
+    postalCode: { type: String, required: false },
+    city: { type: String, required: false },
     phoneNumber: { type: String, required: true },
     deliveryMethod: { type: String, required: true },
     cartItems: [

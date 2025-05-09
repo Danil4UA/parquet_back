@@ -80,7 +80,6 @@ const userController = {
   
   getUser: async (req: Request, res: Response): Promise<any> => {
     try {
-      console.log("req.headers.authorization", req.headers.authorization)
       const token = req.headers.authorization;
       
       if (!token) {
