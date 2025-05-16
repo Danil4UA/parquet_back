@@ -7,6 +7,7 @@ import orderRoutes from "./routes/orderRoutes";
 import userRoutes from "./routes/userRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import photoRoutes from "./routes/photoRoutes.js";
+import contactRoutes from "./routes/contactRoutes";
 
 connectDB();
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/products", productsRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/photos", photoRoutes);
 
 app.listen(PORT, () => {
