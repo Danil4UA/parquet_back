@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import Product from "../model/Product";
 import { sanitizeProductData } from "../utils/productUtils";
+import Order from "../model/Order";
+import RequestValidator from "../requestValidator/requestValidator";
 
 const adminController = {
     getFullProduct: async (req: Request, res: Response): Promise<any> => {
@@ -115,6 +117,69 @@ const adminController = {
         res.status(500).json({ message: 'Server error' });
       }
     },
+
+    getAllOrders: async (req: Request, res: Response): Promise<any> => {
+      const { 
+        page = 1,
+        limit = 10,
+        search
+      } = req.query;
+
+      const pageNumber = Math.max(1, parseInt(page.toString()));
+      const pageLimit = parseInt(limit.toString());
+      const skip = Math.max(0, (pageNumber - 1) * pageLimit);
+
+      try {
+        let query: Record<string, any> = {};
+        if (search) {
+          const searchRegex = new RegExp(search as string, "i");
+          query.$or = [
+            { orderNumber: searchRegex },
+            { "customer.email": searchRegex },
+            { "customer.name": searchRegex },
+          ];
+        }
+        const totalOrders = await Order.countDocuments(query);
+        const orders = await Order.find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(pageLimit);
+
+          res.status(200).json({
+            orders,
+            pagination: {
+              total: totalOrders,
+              page: pageNumber,
+              limit: pageLimit,
+              pages: Math.ceil(totalOrders / pageLimit)
+            }
+          });
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    getOrderById: async (req: Request, res: Response): Promise<any> => {
+      const { id } = req.params;
+
+      if(!RequestValidator.isValidIdRequest(id, res)){
+        return;
+      }
+      try {
+        const order = await Order.findById(id);
+        if (!order) {
+          return res.status(404).json({ message: 'Order not found' });
+        }
+        res.status(200).json({
+          message: 'Order retrieved successfully',
+          order
+        });
+      } catch (error) {
+        console.error('Error retrieving order:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    }
 }
 
 export default adminController

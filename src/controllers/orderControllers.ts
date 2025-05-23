@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { formatOrderMessage } from "../utils";
 import Order from "../model/Order";
-import OrderUtils from "../utils/orderUtils";
+import Product from "../model/Product";
 
 export interface OrderData {
   name: string;
@@ -35,30 +35,114 @@ const orderControllers = {
 
   createOrder: async (req: Request, res: Response) : Promise<any> => {
     try {
-      const orderData = OrderUtils.setOrderData(req.body);
-      const validation = OrderUtils.validateOrderData(orderData);
-
-      if (!validation.isValid) {
+      const orderNumber = await Order.generateOrderNumber();
+      
+      const cartItemIds = req.body.cartItems.map((item: any) => item.id);
+      
+      const products = await Product.find({ _id: { $in: cartItemIds } });
+      if (products.length !== cartItemIds.length) {
+        const foundIds = products.map(p => p._id.toString());
+        const missingIds = cartItemIds.filter((id: string) => !foundIds.includes(id));
+        
         return res.status(400).json({
           success: false,
-          message: "Missing required fields",
-          missingFields: validation.missingFields,
-          invalidFields: validation.invalidFields
+          message: "Some products not found",
+          missingProducts: missingIds
         });
       }
+
+      const productMap = new Map(
+        products.map(product => [product._id.toString(), product])
+      );
+
+      const processedCartItems = req.body.cartItems.map((item: any, index: number) => {
+        
+        const product = productMap.get(item.id);
+        
+        if (!product) {
+          throw new Error(`Product ${item.id} not found`);
+        }
+
+        const pricePerSqm = product.discount > 0 
+          ? product.price * (1 - product.discount / 100)
+          : product.price;
+        
+
+        let actualArea: number;
+        let boxes: number;
+        let totalPrice: number;
+
+        if (product.boxCoverage) {
+          const requestedArea = item.quantity;
+          
+          boxes = Math.ceil(requestedArea / product.boxCoverage);
+          
+          actualArea = boxes * product.boxCoverage;
+          
+          totalPrice = pricePerSqm * actualArea;
+        } else {
+          boxes = item.quantity;
+          actualArea = item.quantity;
+          totalPrice = pricePerSqm * item.quantity;
+        }
+        
+        const processedItem = {
+          productId: product._id.toString(),
+          name: product.name,
+          model: product.model,
+          quantity: item.quantity,
+          price: pricePerSqm,
+          actualArea: Number(actualArea.toFixed(2)),
+          boxes: boxes,
+          totalPrice: Number(totalPrice.toFixed(2))
+        };
+              
+        return processedItem;
+      });
+
+      const subtotal = processedCartItems.reduce(
+        (sum: number, item: any) => sum + item.totalPrice, 
+        0
+      );
       
+      const shippingCost = req.body.deliveryMethod === 'shipping' ? 250 : 0;
+
+      const totalPrice = Number((subtotal + shippingCost).toFixed(2));
+      
+      const orderData = {
+        orderNumber,
+        name: req.body.name,
+        lastName: req.body.lastName,
+        phoneNumber: req.body.phoneNumber,
+        email: req.body.email,
+        deliveryMethod: req.body.deliveryMethod,
+        address: req.body.address || '',
+        apartment: req.body.apartment || '',
+        city: req.body.city || '',
+        postalCode: req.body.postalCode || '',
+        cartItems: processedCartItems,
+        shippingCost,
+        totalPrice,
+        status: 'pending',
+        paymentStatus: 'pending',
+        notes: req.body.notes
+      };
+
+
       const newOrder = new Order(orderData);
       const savedOrder = await newOrder.save();
       
-      res.status(200).json({
+      res.status(201).json({
         success: true,
-        order: savedOrder
+        order: savedOrder,
+        orderNumber,
+        message: `Order ${savedOrder.orderNumber} created successfully`
       });
-    } catch (error) {
-      console.error("Order creation error:", error);
+
+    } catch (error: any) {
       res.status(500).json({
         success: false,
-        message: "Error creating order"
+        message: error.message || "Error creating order"
       });
     }
   },
