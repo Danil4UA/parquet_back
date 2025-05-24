@@ -40,15 +40,15 @@ export default class OrderUtils {
       return orderData;
     }
 
-    static isValidPaymentStatus = (paymentStatus: string): paymentStatus is PaymentStatus => {
+    static isValidPaymentStatus = (paymentStatus: string | null): paymentStatus is PaymentStatus => {
         return this.ValidPaymentStatus.includes(paymentStatus as PaymentStatus);
     }
 
-    static isValidOrderStatus = (status: string): status is OrderStatus => {
+    static isValidOrderStatus = (status: string | null): status is OrderStatus => {
         return this.ValidOrderStatus.includes(status as OrderStatus);
     }
 
-    static isValidDeliveryMethod = (deliveryMethod: string): deliveryMethod is DeliveryMethod => {
+    static isValidDeliveryMethod = (deliveryMethod: string | null): deliveryMethod is DeliveryMethod => {
         return this.ValidDeliveryMethod.includes(deliveryMethod as DeliveryMethod);
     }
 
