@@ -25,7 +25,7 @@ class Utils {
         return this.isString(value) && value.trim() !== '';
     };
 
-    static badRequest(response: Response, message: string) {
+    static badRequest(response: Response, message?: string) {
         return response.status(400).json({
             success: false,
             message: message || "Bad Request",

@@ -3,6 +3,9 @@ import Product from "../model/Product";
 import { sanitizeProductData } from "../utils/productUtils";
 import Order from "../model/Order";
 import RequestValidator from "../requestValidator/requestValidator";
+import OrderRequestValidator from "../requestValidator/orderRequestValidator";
+import OrderUtils from "../utils/orderUtils";
+import Utils from "../utils/utils";
 
 const adminController = {
     getFullProduct: async (req: Request, res: Response): Promise<any> => {
@@ -177,6 +180,62 @@ const adminController = {
         });
       } catch (error) {
         console.error('Error retrieving order:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    deleteOrderById: async (req: Request, res: Response): Promise<any> => {
+      const { id } = req.params;
+
+      if(!RequestValidator.isValidIdRequest(id, res)){
+        return
+      }
+      try {
+        const deleteResult = await Order.deleteOne({ _id: id });
+
+        if(deleteResult.deletedCount === 0){
+          return res.status(404).json({ message: 'No order found with the provided ID' });
+        }
+        res.status(200).json({
+          message: `Successfully deleted ${deleteResult.deletedCount} order`,
+          deletedCount: deleteResult.deletedCount
+        });
+      } catch (error) {
+        console.error('Error retrieving order:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    editOrderById: async (req: Request, res: Response): Promise<any> => {
+      if(!OrderRequestValidator.isValidEditOrderRequest(req.body, res)){
+        return
+      }
+      try {
+        const { id } = req.body;
+        const orderData = OrderUtils.setOrderData(req.body);
+
+        if(!orderData){
+          Utils.badRequest(res, "Order data is not valid")
+          return
+        }
+
+        const updatedOrder = await Order.findByIdAndUpdate(
+          id,
+          { $set: orderData },
+          { new: true, runValidators: true }
+        );
+
+        if (!updatedOrder) {
+          Utils.badRequest(res, "Order is not found")
+          return
+        }
+
+        res.json({
+            message: 'Order updated successfully',
+            product: updatedOrder
+        });
+      } catch (error) {
+        console.error('Error updating order:', error);
         res.status(500).json({ message: 'Server error' });
       }
     }

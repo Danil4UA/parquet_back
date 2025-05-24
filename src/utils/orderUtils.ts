@@ -1,11 +1,13 @@
 import { OrderData } from "../controllers/orderControllers";
+import { DeliveryMethod, OrderStatus, PaymentStatus } from "../types/orderTypes";
 
 export default class OrderUtils {
 
-    static ValidDeliveryMethod = {
-      SHIPPING: "shipping",
-      PICK_UP: "pickup"
-    }
+    static readonly ValidDeliveryMethod: DeliveryMethod[] = ["shipping", "pickup"];
+
+    static readonly ValidOrderStatus: OrderStatus[] = ["pending", "completed", "canceled"];
+
+    static readonly ValidPaymentStatus: PaymentStatus[] = ["pending", "notPaid", "paid", "refund"];
 
     static setOrderData = (body: any): Partial<OrderData> => {
       const orderData: Partial<OrderData> = {};
@@ -38,34 +40,16 @@ export default class OrderUtils {
       return orderData;
     }
 
-    static validateOrderData = (orderData: Partial<OrderData>): { 
-      isValid: boolean; 
-      missingFields?: string[];
-      invalidFields?: string[];
-    } => {
-      const requiredFields = [
-        'name',
-        'lastName',
-        'phoneNumber',
-        'deliveryMethod',
-        'cartItems'
-      ];
-      
-      if (orderData.deliveryMethod === this.ValidDeliveryMethod.SHIPPING) {
-        requiredFields.push('address');
-      }
-      
-      const missingFields = requiredFields.filter(field => !orderData[field as keyof OrderData]);
-      const invalidFields: string[] = [];
+    static isValidPaymentStatus = (paymentStatus: string): paymentStatus is PaymentStatus => {
+        return this.ValidPaymentStatus.includes(paymentStatus as PaymentStatus);
+    }
 
-      if (orderData.cartItems && (!Array.isArray(orderData.cartItems) || orderData.cartItems.length === 0)) {
-          invalidFields.push('cartItems');
-      }
-      return {
-        isValid: missingFields.length === 0,
-        missingFields: missingFields.length > 0 ? missingFields : undefined,
-        invalidFields: invalidFields.length > 0 ? invalidFields : undefined
-      };
+    static isValidOrderStatus = (status: string): status is OrderStatus => {
+        return this.ValidOrderStatus.includes(status as OrderStatus);
+    }
+
+    static isValidDeliveryMethod = (deliveryMethod: string): deliveryMethod is DeliveryMethod => {
+        return this.ValidDeliveryMethod.includes(deliveryMethod as DeliveryMethod);
     }
 
     static calculatePriceWithDiscount = (price: number, discount: number = 0): number => {
