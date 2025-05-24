@@ -1,8 +1,8 @@
-export type PaymentStatus = "pending" | "notPaid" | "paid" | "refund";
+export type PaymentStatus = "pending" | "notPaid" | "paid" | "refund" | null;
 
-export type OrderStatus = "pending" | "completed" | "canceled";
+export type OrderStatus = "pending" | "completed" | "canceled" | null;
 
-export type DeliveryMethod = "shipping" | "pickup";
+export type DeliveryMethod = "shipping" | "pickup" | null;
 
 export type OrderData = {
     id: string;

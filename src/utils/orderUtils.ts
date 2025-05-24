@@ -3,11 +3,11 @@ import { DeliveryMethod, OrderStatus, PaymentStatus } from "../types/orderTypes"
 
 export default class OrderUtils {
 
-    static readonly ValidDeliveryMethod: DeliveryMethod[] = ["shipping", "pickup"];
+    static readonly ValidDeliveryMethod: DeliveryMethod[] = ["shipping", "pickup", null];
 
-    static readonly ValidOrderStatus: OrderStatus[] = ["pending", "completed", "canceled"];
+    static readonly ValidOrderStatus: OrderStatus[] = ["pending", "completed", "canceled", null];
 
-    static readonly ValidPaymentStatus: PaymentStatus[] = ["pending", "notPaid", "paid", "refund"];
+    static readonly ValidPaymentStatus: PaymentStatus[] = ["pending", "notPaid", "paid", "refund", null];
 
     static setOrderData = (body: any): Partial<OrderData> => {
       const orderData: Partial<OrderData> = {};

@@ -69,7 +69,7 @@ const orderSchema: Schema<IOrder> = new mongoose.Schema(
     city: { type: String, required: false },
     phoneNumber: { type: String, required: true },
     email: { type: String, required: false },
-    deliveryMethod: { type: String, required: true },
+    deliveryMethod: { type: String, required: false },
     shippingCost: { type: Number, required: true, default: 0 },
     cartItems: {
       type: [orderItemSchema],
@@ -82,7 +82,7 @@ const orderSchema: Schema<IOrder> = new mongoose.Schema(
       }
     },
     totalPrice: { type: Number, required: true },
-    status: { type: String, default: "pending" },
+    status: { type: String, default: "pending", required: false},
     paymentStatus: { type: String, required: false },
     notes: { type: String, required: false },
     createdAt: { type: Date, default: Date.now }
