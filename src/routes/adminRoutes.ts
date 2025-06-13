@@ -13,7 +13,9 @@ router.get("/orders", authenticateToken, adminController.getAllOrders);
 router.patch("/order", authenticateToken, adminController.editOrderById);
 router.delete("/order/:id", authenticateToken, adminController.deleteOrderById);
 router.get("/order/:id", authenticateToken, adminController.getOrderById);
-// router.post("/order", authenticateToken, adminController.adminCreateOrder);
 
+router.get("/products-by-category", authenticateToken, adminController.getProductsByCategory);
+router.get("/order-status-distribution", authenticateToken, adminController.getOrderStatusDistribution);
+router.get("/orders-timeline", authenticateToken, adminController.getOrdersTimeline);
 
 export default router;

@@ -238,7 +238,161 @@ const adminController = {
         console.error('Error updating order:', error);
         res.status(500).json({ message: 'Server error' });
       }
-    }
+    },
+
+    getProductsByCategory: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const categoryData = await Product.aggregate([
+          {
+            $group: {
+              _id: "$category",
+              count: { $sum: 1 }
+            }
+          },
+          {
+            $project: {
+              category: "$_id",
+              count: 1,
+              _id: 0
+            }
+          },
+          {
+            $sort: { count: -1 }
+          }
+        ]);
+        
+        res.status(200).json(categoryData);
+      } catch (error) {
+        console.error('Error retrieving products by category:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    getOrderStatusDistribution: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const statusDistribution = await Order.aggregate([
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 }
+            }
+          },
+          {
+            $project: {
+              name: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$_id", "pending"] }, then: "Pending" },
+                    { case: { $eq: ["$_id", "completed"] }, then: "Completed" },
+                    { case: { $eq: ["$_id", "canceled"] }, then: "Canceled" },
+                    { case: { $eq: ["$_id", "processing"] }, then: "Processing" },
+                    { case: { $eq: ["$_id", "shipped"] }, then: "Shipped" }
+                  ],
+                  default: "Other"
+                }
+              },
+              value: "$count",
+              color: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$_id", "pending"] }, then: "#f59e0b" },
+                    { case: { $eq: ["$_id", "completed"] }, then: "#22c55e" },
+                    { case: { $eq: ["$_id", "canceled"] }, then: "#ef4444" },
+                    { case: { $eq: ["$_id", "processing"] }, then: "#3b82f6" },
+                    { case: { $eq: ["$_id", "shipped"] }, then: "#8b5cf6" }
+                  ],
+                  default: "#6b7280"
+                }
+              },
+              _id: 0
+            }
+          }
+        ]);
+        
+        res.status(200).json(statusDistribution);
+      } catch (error) {
+        console.error('Error retrieving order status distribution:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+    getOrdersTimeline: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const { days, all } = req.query;
+        
+        let matchStage: any = {};
+        
+        if (all === 'true') {
+          matchStage = {};
+        } else {
+          const numDays = parseInt((days || 7).toString());
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - numDays);
+          
+          matchStage = {
+            createdAt: {
+              $gte: startDate,
+              $lte: endDate
+            }
+          };
+        }
+        
+        const pipeline: any = [];
+        
+        if (Object.keys(matchStage).length > 0) {
+          pipeline.push({ $match: matchStage });
+        }
+        
+        pipeline.push(
+          {
+            $group: {
+              _id: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$createdAt"
+                }
+              },
+              orders: { $sum: 1 }
+            }
+          },
+          {
+            $sort: { _id: 1 }
+          },
+          {
+            $project: {
+              date: "$_id",
+              orders: 1,
+              _id: 0
+            }
+          }
+        );
+        
+        const ordersTimeline = await Order.aggregate(pipeline);
+        
+        if (all === 'true') {
+          return res.status(200).json(ordersTimeline);
+        }
+        
+        const numDays = parseInt((days || 7).toString());
+        const timelineData = [];
+        for (let i = numDays - 1; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dateString = date.toISOString().split('T')[0];
+          
+          const existingData = ordersTimeline.find(item => item.date === dateString);
+          timelineData.push({
+            date: dateString,
+            orders: existingData ? existingData.orders : 0
+          });
+        }
+        
+        res.status(200).json(timelineData);
+      } catch (error) {
+        console.error('Error retrieving orders timeline:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
 }
 
 export default adminController
