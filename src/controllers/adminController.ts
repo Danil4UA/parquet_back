@@ -393,6 +393,43 @@ const adminController = {
         res.status(500).json({ message: 'Server error' });
       }
     },
+
+    getDashboardStats: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const totalOrders = await Order.countDocuments();
+        
+        const completedOrders = await Order.countDocuments({ status: 'completed' });
+        
+        const pendingOrders = await Order.countDocuments({ status: 'pending' });
+        
+        const canceledOrders = await Order.countDocuments({ status: 'canceled' });
+        
+        const totalProducts = await Product.countDocuments();
+        
+        const successRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : 0;
+        
+        const lastWeek = new Date();
+        lastWeek.setDate(lastWeek.getDate() - 7);
+        const ordersThisWeek = await Order.countDocuments({
+          createdAt: { $gte: lastWeek }
+        });
+
+        const stats = {
+            totalOrders,
+            completedOrders,
+            pendingOrders,
+            canceledOrders,
+            totalProducts,
+            successRate,
+            ordersThisWeek
+          }
+        
+        res.status(200).json(stats);
+      } catch (error) {
+        console.error('Error retrieving dashboard stats:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
 }
 
 export default adminController

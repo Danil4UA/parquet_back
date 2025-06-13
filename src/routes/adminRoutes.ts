@@ -17,5 +17,6 @@ router.get("/order/:id", authenticateToken, adminController.getOrderById);
 router.get("/products-by-category", authenticateToken, adminController.getProductsByCategory);
 router.get("/order-status-distribution", authenticateToken, adminController.getOrderStatusDistribution);
 router.get("/orders-timeline", authenticateToken, adminController.getOrdersTimeline);
+router.get("/stats", authenticateToken, adminController.getDashboardStats);
 
 export default router;
