@@ -12,9 +12,9 @@ class ContactRequestValidator {
     } = body;
 
     if(!Utils.isNonEmptyString(name) || 
-       !Utils.isNonEmptyString(email) || 
        !Utils.isNonEmptyString(phone) || 
-       !Utils.isNonEmptyString(message)
+       !Utils.isNonEmptyString(message) ||
+       (email !== undefined && !Utils.isNonEmptyString(email))
     ){
         return response.status(400).json({
             success: false,

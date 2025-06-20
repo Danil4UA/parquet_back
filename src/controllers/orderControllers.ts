@@ -17,23 +17,23 @@ export interface OrderData {
   country?: string;
 }
 
-const orderControllers = {
-  completeOrder: async (req: Request, res: Response) => {
+
+class orderControllers {
+
+  static sendTelegramNotification = async (orderData: any) => {
     try {
-      const orderData = req.body;
       const message = formatOrderMessage(orderData);
       await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
         chat_id: process.env.CHAT_ID,
         text: message,
         parse_mode: "Markdown"
       });
-      res.status(200).json({ success: true, message: "sentSuccess" });
     } catch (error) {
-      res.status(500).json({ success: false, message: "sentFailed", error });
+      console.error("Error sending Telegram notification:", error);
     }
-  },
+  }
 
-  createOrder: async (req: Request, res: Response) : Promise<any> => {
+  static createOrder = async (req: Request, res: Response): Promise<any> => {
     try {
       const orderNumber = await Order.generateOrderNumber();
       
@@ -132,6 +132,7 @@ const orderControllers = {
       const newOrder = new Order(orderData);
       const savedOrder = await newOrder.save();
       
+      await this.sendTelegramNotification(savedOrder);
       res.status(201).json({
         success: true,
         order: savedOrder,
@@ -145,9 +146,9 @@ const orderControllers = {
         message: error.message || "Error creating order"
       });
     }
-  },
+  }
 
-  getOrders: async (req: Request, res: Response) => {
+  static getOrders = async (req: Request, res: Response) => {
     try {
       const orders = await Order.find().sort({ createdAt: -1 });
       res.status(200).json({
@@ -161,9 +162,9 @@ const orderControllers = {
         message: "Error fetching orders"
       });
     }
-  },
+  }
 
-  getOrderById: async (req: Request, res: Response) => {
+  static getOrderById = async (req: Request, res: Response) => {
     try {
       const order = await Order.findById(req.params.id);
       

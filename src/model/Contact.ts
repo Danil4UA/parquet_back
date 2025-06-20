@@ -9,7 +9,7 @@ const ContactSchema = new Schema({
   },
   email: {
     type: String,
-    required: [true, "Email is required"],
+    required: false,
     trim: true,
     lowercase: true
   },
