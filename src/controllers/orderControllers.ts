@@ -19,7 +19,6 @@ export interface OrderData {
 
 
 class orderControllers {
-
   static sendTelegramNotification = async (orderData: any) => {
     try {
       const message = formatOrderMessage(orderData);
