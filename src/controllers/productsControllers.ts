@@ -66,7 +66,7 @@ getProductByCategory: async (req: Request, res: Response) => {
   } = req.query;
   const language = req.query.language?.toString() || "en";
   const page = Math.max(1, parseInt(req.query.page?.toString() || "1"));
-  const limit = parseInt(req.query.limit?.toString() || "16");
+  const limit = parseInt(req.query.limit?.toString() || "20");
   const useRandomOrder = isRandom === "true";
 
   try {
