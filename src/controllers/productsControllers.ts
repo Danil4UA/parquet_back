@@ -104,13 +104,33 @@ getProductByCategory: async (req: Request, res: Response) => {
     if (useRandomOrder) {
       const allProducts = await Product.find(query);
       
-      const sortedProducts = allProducts.sort((a, b) => {
-        const seedIndexA = Math.abs(a._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % RANDOM_SEED.length;
-        const seedIndexB = Math.abs(b._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % RANDOM_SEED.length;
+      let sortedProducts;
+  
+      if (sortBy === "price_asc" || sortBy === "price_desc") {
+        const getEffectivePrice = (product: any) => {
+          const discount = product.discount || 0;
+          return Number(product.price) * (1 - discount / 100);
+        };
         
-        return RANDOM_SEED[seedIndexA] - RANDOM_SEED[seedIndexB];
-      });
-      
+        sortedProducts = allProducts.sort((a, b) => {
+          const priceA = getEffectivePrice(a);
+          const priceB = getEffectivePrice(b);
+          
+          if (sortBy === "price_asc") {
+            return priceA - priceB;
+          } else {
+            return priceB - priceA;
+          }
+        });
+      } else {
+        sortedProducts = allProducts.sort((a, b) => {
+          const seedIndexA = Math.abs(a._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % RANDOM_SEED.length;
+          const seedIndexB = Math.abs(b._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % RANDOM_SEED.length;
+          
+          return RANDOM_SEED[seedIndexA] - RANDOM_SEED[seedIndexB];
+        });
+      }
+    
       const start = (page - 1) * limit;
       const end = start + limit;
       const paginatedProducts = sortedProducts.slice(start, end);
