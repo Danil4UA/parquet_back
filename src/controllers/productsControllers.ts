@@ -61,7 +61,8 @@ getProductByCategory: async (req: Request, res: Response) => {
     search, 
     color, 
     type,
-    isRandom
+    isRandom,
+    sortBy,
   } = req.query;
   const language = req.query.language?.toString() || "en";
   const page = Math.max(1, parseInt(req.query.page?.toString() || "1"));
@@ -141,7 +142,16 @@ getProductByCategory: async (req: Request, res: Response) => {
     }
     
     const skip = Math.max(0, (page - 1) * limit);
+
+    let sortOption: Record<string, 1 | -1> = {};
+    if (sortBy === "price_asc") {
+      sortOption = { price: 1 };
+    } else if (sortBy === "price_desc") {
+      sortOption = { price: -1 };
+    }
+
     const products = await Product.find(query)
+      .sort(sortOption)
       .skip(skip)
       .limit(limit);
 
