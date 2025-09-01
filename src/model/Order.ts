@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
-
+import { v4 as uuidv4 } from 'uuid';
 interface IOrderItem {
   productId: string;     
   name: string;         
@@ -90,13 +90,12 @@ const orderSchema: Schema<IOrder> = new mongoose.Schema(
   { timestamps: true }
 );
 
-orderSchema.statics.generateOrderNumber = async function(): Promise<string> {
+orderSchema.statics.generateOrderNumber = function(): string {
   const year = new Date().getFullYear();
-  const count = await this.countDocuments({
-    orderNumber: new RegExp(`^ORD-${year}-`)
-  });
-  const orderNum = (count + 1).toString().padStart(4, '0');
-  return `ORD-${year}-${orderNum}`;
+  const timestamp = Date.now().toString(36); // Base36 encoding for shorter string
+  const uuid = uuidv4().split('-')[0]; // Take first part of UUID
+  
+  return `ORD-${year}-${timestamp}-${uuid}`.toUpperCase();
 };
 const Order = mongoose.model<IOrder, IOrderModel>("Order", orderSchema);
 
