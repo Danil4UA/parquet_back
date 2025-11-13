@@ -136,6 +136,7 @@ class orderControllers {
         success: true,
         order: savedOrder,
         orderNumber,
+        totalPrice,
         message: `Order ${savedOrder.orderNumber} created successfully`
       });
 
