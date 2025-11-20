@@ -45,6 +45,7 @@ const adminController = {
 
         const product = new Product ({
           ...data,
+          stock: data.stock || 1,
           createdAt: new Date(),
         })
 
