@@ -23,6 +23,14 @@ class ContactRequestValidator {
     }
     return true;
   }  
+
+  static isValidConsultationForm = (body: any, res: any): boolean => {
+    if (!body.name || !body.phone || !body.productId || !body.formType) {
+        Utils.badRequest(res, "Missing required fields");
+        return false;
+    }
+    return true;
+  }
 }
 
 export default ContactRequestValidator;

@@ -4,6 +4,8 @@ import ContactUtils from '../utils/contactUtils';
 import Contact from '../model/Contact';
 import Utils from '../utils/utils';
 import axios from 'axios';
+import Consultation from '../model/Consultation';
+import Product from '../model/Product';
 
 class contactController {
     static sendTelegramMessage =  async (contactData: any): Promise<any> => {
@@ -16,6 +18,19 @@ class contactController {
             });
         } catch (error) {
             console.error("Error sending Telegram notification:", error);
+        }
+    }
+
+    static sendTelegramConsultationMessage = async (consultationData: any, productData: any): Promise<any> => {
+        try {
+            const message = ContactUtils.formatConsultationMessage(consultationData, productData);
+            await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                chat_id: process.env.CHAT_ID,
+                text: message,
+                parse_mode: "Markdown"
+            });
+        } catch (error) {
+            console.error("Error sending Telegram consultation notification:", error);
         }
     }
 
@@ -50,5 +65,40 @@ class contactController {
             });
         }
     }
-}
+
+    static sendConsultationRequest = async (req: Request, res: Response): Promise<any> => {
+        if(!ContactRequestValidator.isValidConsultationForm(req.body, res)){
+            return false;
+        }
+
+        try {
+            const validConsultationForm = ContactUtils.setConsultationObject(req.body);
+
+            if(!validConsultationForm){
+                Utils.badRequest(res, "Invalid consultation form data");
+                return;
+            }
+
+            const product = await Product.findById(req.body.productId);
+
+            const consultationRequest = new Consultation ({
+                ...validConsultationForm,
+                createdAt: new Date(),
+            });
+            
+            await consultationRequest.save();
+            await this.sendTelegramConsultationMessage(req.body, product);
+            res.status(200).json({
+                success: true,
+                message: "Consultation request sent successfully"
+            });
+        } catch (error) {
+            console.error("Error sending consultation request:", error);
+            res.status(500).json({
+                success: false,
+                message: "Error sending consultation request",
+            });
+        }
+    }
+    }
 export default contactController

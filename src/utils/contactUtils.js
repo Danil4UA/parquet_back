@@ -50,6 +50,39 @@ class ContactUtils {
         
         return formattedMessage;
     }
+
+    static setConsultationObject = (body) => {
+        return {
+            name: body.name,
+            phone: body.phone,
+            message: body.message || '',
+            productId: body.productId,
+            formType: body.formType
+        };
+    }
+
+    static formatConsultationMessage = (consultationData, productData) => {
+        let productInfo = '';
+        
+        if (productData) {
+            const productName = productData.name?.ru || 
+                            'Неизвестный продукт';
+                            
+            
+            productInfo = `*Продукт:* ${productName}\n*ID продукта:* ${productData._id}\n`;
+        } else {
+            productInfo = `*ID продукта:* ${consultationData.productId}\n`;
+        }
+
+        return `🔔 *Новая заявка на консультацию*\n\n` +
+            `*Имя:* ${consultationData.name}\n` +
+            `*Телефон:* ${consultationData.phone}\n` +
+            productInfo +
+            `*Модель:* ${productData.model}\n` +
+            `*Тип формы:* ${consultationData.formType}\n` +
+            `${consultationData.message ? `*Сообщение:* ${consultationData.message}\n` : ''}` +
+            `*Время:* ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}`;
+    }
 }
 
 export default ContactUtils;
