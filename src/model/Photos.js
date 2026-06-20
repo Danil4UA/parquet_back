@@ -21,7 +21,7 @@ const PhotoSchema = new Schema({
 }, { timestamps: true });
 
 PhotoSchema.index({ product_id: 1 });
-PhotoSchema.index({ file_name: 1 });
+// file_name is already indexed via `unique: true` above — no separate index needed.
 PhotoSchema.index({ entity_type: 1, entity_id: 1 });
 PhotoSchema.index({ status: 1 });
 
