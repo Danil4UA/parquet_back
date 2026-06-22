@@ -56,11 +56,12 @@ const productsControllers = {
   },
 
 getProductByCategory: async (req: Request, res: Response) => {
-  const { 
-    category, 
-    search, 
-    color, 
+  const {
+    category,
+    search,
+    color,
     type,
+    material,
     isRandom,
     sortBy,
   } = req.query;
@@ -87,7 +88,14 @@ getProductByCategory: async (req: Request, res: Response) => {
       const types = (type as string).split(',');
       query.type = { $in: types.map(t => new RegExp(t, "i")) };
     }
-          
+
+    // "material" narrows the catalog by product category (SPC / Laminate / Wood / Cladding / Panels).
+    // Used by the "all" catalog filter; matches the product's `category` field exactly (case-insensitive).
+    if (material) {
+      const materials = (material as string).split(',');
+      query.category = { $in: materials.map(m => new RegExp(`^${m}$`, "i")) };
+    }
+
     if (search) {
       const searchRegex = new RegExp(search as string, "i");
       query.$or = [
