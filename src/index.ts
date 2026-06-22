@@ -14,17 +14,22 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT;
 
+// Trust the first proxy (e.g. Render/Nginx) so req.ip reflects the real
+// client IP from X-Forwarded-For — required for per-IP rate limiting.
+app.set("trust proxy", 1);
+
 app.use(express.json());
 app.use(
   cors({
     credentials: true,
     origin: (origin, callback) => {
       const allowedOrigins = [
+        // "http://localhost:3001",
         process.env.FRONT_URL_RENDER, 
         process.env.FRONT_URL_CUSTOM
       ];
 
-      if (allowedOrigins.includes(origin) || !origin) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));

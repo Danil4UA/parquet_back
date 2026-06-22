@@ -47,11 +47,27 @@ class contactController {
                 return;
             }
 
+            // Anti-spam: drop duplicate messages from the same phone within a
+            // 10-minute window (silently ack so bots don't adapt).
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            const duplicate = await Contact.findOne({
+                phone: req.body.phone,
+                createdAt: { $gte: tenMinutesAgo },
+            });
+
+            if (duplicate) {
+                console.warn("[contact] duplicate request ignored:", req.body.phone);
+                return res.status(200).json({
+                    success: true,
+                    message: "Contact form sent successfully"
+                });
+            }
+
             const contactRequest = new Contact ({
                 ...validContactForm,
                 createdAt: new Date(),
             })
-            
+
             await contactRequest.save();
             await this.sendTelegramMessage(req.body);
             res.status(200).json({
@@ -79,13 +95,32 @@ class contactController {
                 return;
             }
 
+            // Anti-spam: drop duplicate requests for the same phone + product
+            // within a 10-minute window. Bots resubmit the identical lead over
+            // and over; we silently ack so they don't adapt, but skip saving and
+            // skip the Telegram notification.
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            const duplicate = await Consultation.findOne({
+                phone: validConsultationForm.phone,
+                productId: validConsultationForm.productId,
+                createdAt: { $gte: tenMinutesAgo },
+            });
+
+            if (duplicate) {
+                console.warn("[consultation] duplicate request ignored:", validConsultationForm.phone);
+                return res.status(200).json({
+                    success: true,
+                    message: "Consultation request sent successfully"
+                });
+            }
+
             const product = await Product.findById(req.body.productId);
 
             const consultationRequest = new Consultation ({
                 ...validConsultationForm,
                 createdAt: new Date(),
             });
-            
+
             await consultationRequest.save();
             await this.sendTelegramConsultationMessage(req.body, product);
             res.status(200).json({
