@@ -5,6 +5,7 @@ const router = express.Router();
 router.get("/", productsControllers.getProductByCategory);
 router.get("/all", productsControllers.getAllProducts);
 router.get("/filters", productsControllers.getFilterOptions);
+router.get("/recommendations", productsControllers.getRecommendedProducts);
 router.get("/:id", productsControllers.getProductById);
 
 

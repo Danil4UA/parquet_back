@@ -19,4 +19,7 @@ router.get("/order-status-distribution", authenticateToken, adminController.getO
 router.get("/orders-timeline", authenticateToken, adminController.getOrdersTimeline);
 router.get("/stats", authenticateToken, adminController.getDashboardStats);
 
+router.get("/recommendations", authenticateToken, adminController.getRecommendations);
+router.put("/recommendations", authenticateToken, adminController.saveRecommendations);
+
 export default router;

@@ -1,8 +1,21 @@
 import { Request, Response } from "express";
 import Product from "../model/Product";
+import CategoryRecommendation from "../model/CategoryRecommendation";
 import { isValidLanguage } from "../utils";
 
 const RANDOM_SEED = Array.from({ length: 1000 }, () => Math.random());
+
+// Localizes a product (works for both Mongoose docs and plain aggregate objects).
+const localizeProduct = (product: any, language: string) => {
+  const obj = typeof product.toObject === "function" ? product.toObject() : product;
+  const valid = isValidLanguage(language);
+  return {
+    ...obj,
+    name: valid ? obj.name?.[language] : obj.name?.en,
+    description: valid ? obj.description?.[language] : obj.description?.en,
+    detailedDescription: valid ? obj.detailedDescription?.[language] : obj.detailedDescription?.en
+  };
+};
 
 const productsControllers = {
   getAllProducts: async (req: Request, res: Response) => {
@@ -226,6 +239,73 @@ getProductByCategory: async (req: Request, res: Response) => {
       });
     } catch (error) {
       console.error("Error fetching filter options:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  // Returns "recommended" products for a product page. Resolution order:
+  //   1. The product's own recommendedProducts list (manual override).
+  //   2. Categories configured to be recommended for the product's category (admin).
+  //   3. Fallback: other products from the same category.
+  getRecommendedProducts: async (req: Request, res: Response): Promise<any> => {
+    const language = req.query.language?.toString() || "en";
+    const productId = req.query.productId?.toString();
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit?.toString() || "12"), 24));
+
+    try {
+      if (!productId) {
+        return res.status(200).json({ products: [] });
+      }
+
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(200).json({ products: [] });
+      }
+
+      let products: any[] = [];
+
+      // 1. Manual per-product override.
+      if (product.recommendedProducts && product.recommendedProducts.length > 0) {
+        products = await Product.find({
+          _id: { $in: product.recommendedProducts }
+        }).limit(limit);
+      }
+
+      // 2. Category-level recommendations.
+      if (products.length === 0) {
+        const rec = await CategoryRecommendation.findOne({ fromCategory: product.category });
+        if (rec && rec.recommends && rec.recommends.length > 0) {
+          products = await Product.aggregate([
+            {
+              $match: {
+                category: { $in: rec.recommends },
+                _id: { $ne: product._id },
+                isAvailable: true
+              }
+            },
+            { $sample: { size: limit } }
+          ]);
+        }
+      }
+
+      // 3. Fallback: same category.
+      if (products.length === 0) {
+        products = await Product.aggregate([
+          {
+            $match: {
+              category: product.category,
+              _id: { $ne: product._id },
+              isAvailable: true
+            }
+          },
+          { $sample: { size: limit } }
+        ]);
+      }
+
+      const localized = products.map((p) => localizeProduct(p, language));
+      res.status(200).json({ products: localized });
+    } catch (error) {
+      console.error("Error fetching recommended products:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }

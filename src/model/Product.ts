@@ -20,12 +20,13 @@ export interface IProductSchema {
   type: string;
   material: string;
   countryOfOrigin: string;
-  boxCoverage?: number;   
-  model?: string;        
-  finish?: string;       
-  width?: number;        
-  length?: number;       
-  thickness?: number;    
+  boxCoverage?: number;
+  model?: string;
+  finish?: string;
+  width?: number;
+  length?: number;
+  thickness?: number;
+  recommendedProducts?: string[];
 }
 
 const LocalizedStringSchema = {
@@ -64,7 +65,8 @@ const ProductSchema: Schema = new Schema(
     finish: { type: String, required: false },
     width: { type: Number, required: false },
     length: { type: Number, required: false },
-    thickness: { type: Number, required: false }
+    thickness: { type: Number, required: false },
+    recommendedProducts: { type: [String], default: [] }
   },
   { timestamps: true }
 );

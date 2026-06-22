@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Product from "../model/Product";
+import CategoryRecommendation from "../model/CategoryRecommendation";
 import { sanitizeProductData } from "../utils/productUtils";
 import Order from "../model/Order";
 import RequestValidator from "../requestValidator/requestValidator";
@@ -391,6 +392,45 @@ const adminController = {
         res.status(200).json(timelineData);
       } catch (error) {
         console.error('Error retrieving orders timeline:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    getRecommendations: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const recommendations = await CategoryRecommendation.find();
+        res.status(200).json(recommendations);
+      } catch (error) {
+        console.error('Error retrieving recommendations:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    },
+
+    saveRecommendations: async (req: Request, res: Response): Promise<any> => {
+      try {
+        const { recommendations } = req.body;
+
+        if (!Array.isArray(recommendations)) {
+          return res.status(400).json({ message: 'recommendations must be an array' });
+        }
+
+        await Promise.all(
+          recommendations.map((rec: { fromCategory: string; recommends: string[] }) =>
+            CategoryRecommendation.findOneAndUpdate(
+              { fromCategory: rec.fromCategory },
+              {
+                fromCategory: rec.fromCategory,
+                recommends: Array.isArray(rec.recommends) ? rec.recommends : []
+              },
+              { upsert: true, new: true }
+            )
+          )
+        );
+
+        const all = await CategoryRecommendation.find();
+        res.status(200).json({ message: 'Recommendations saved', recommendations: all });
+      } catch (error) {
+        console.error('Error saving recommendations:', error);
         res.status(500).json({ message: 'Server error' });
       }
     },
