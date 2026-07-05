@@ -28,14 +28,22 @@ const upload = multer({
 
 const uploadMultiple = upload.array('photos', 10); // 10 - maximum number of files
 
-const optimizeImage = async (buffer, originalFormat) => {
+// Full-screen images (homepage hero) need more pixels than product photos
+const PRESET_MAX_DIMENSIONS = {
+  default: 1200,
+  hero: 1920,
+};
+
+const optimizeImage = async (buffer, originalFormat, preset = "default") => {
   let sharpImage = sharp(buffer);
-  
+
+  const maxDimension = PRESET_MAX_DIMENSIONS[preset] || PRESET_MAX_DIMENSIONS.default;
+
   // Resize the image to reasonable dimensions while maintaining aspect ratio
-  sharpImage = sharpImage.resize({ 
-    width: 1200, 
-    height: 1200, 
-    fit: 'inside', 
+  sharpImage = sharpImage.resize({
+    width: maxDimension,
+    height: maxDimension,
+    fit: 'inside',
     withoutEnlargement: true // Don't enlarge small images
   });
   
@@ -67,8 +75,8 @@ const photoController = {
 
         const fileExtension = path.extname(req.file.originalname);
         const fileName = `${uuidv4()}${fileExtension}`;
-        
-        const optimizedBuffer = await optimizeImage(req.file.buffer, req.file.mimetype);
+
+        const optimizedBuffer = await optimizeImage(req.file.buffer, req.file.mimetype, req.body.preset);
         const optimizedContentType = getOptimizedContentType(req.file.mimetype);
         
         const params = {
@@ -201,7 +209,7 @@ const photoController = {
             const fileName = `${uuidv4()}${fileExtension}`;
             
             // Optimize the image
-            const optimizedBuffer = await optimizeImage(file.buffer, file.mimetype);
+            const optimizedBuffer = await optimizeImage(file.buffer, file.mimetype, req.body.preset);
             const optimizedContentType = getOptimizedContentType(file.mimetype);
             
             const params = {
