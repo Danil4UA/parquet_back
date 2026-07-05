@@ -77,6 +77,7 @@ getProductByCategory: async (req: Request, res: Response) => {
     material,
     isRandom,
     sortBy,
+    availability,
   } = req.query;
   const language = req.query.language?.toString() || "en";
   const page = Math.max(1, parseInt(req.query.page?.toString() || "1"));
@@ -107,6 +108,13 @@ getProductByCategory: async (req: Request, res: Response) => {
     if (material) {
       const materials = (material as string).split(',');
       query.category = { $in: materials.map(m => new RegExp(`^${m}$`, "i")) };
+    }
+
+    // Older products may not have the isAvailable field at all — treat them as in stock
+    if (availability === "in_stock") {
+      query.isAvailable = { $ne: false };
+    } else if (availability === "out_of_stock") {
+      query.isAvailable = false;
     }
 
     if (search) {
@@ -189,6 +197,14 @@ getProductByCategory: async (req: Request, res: Response) => {
       sortOption = { price: 1 };
     } else if (sortBy === "price_desc") {
       sortOption = { price: -1 };
+    } else if (sortBy === "newest") {
+      sortOption = { createdAt: -1 };
+    } else if (sortBy === "oldest") {
+      sortOption = { createdAt: 1 };
+    } else if (sortBy === "name_asc") {
+      sortOption = { [`name.${isValidLanguage(language) ? language : "en"}`]: 1 };
+    } else if (sortBy === "name_desc") {
+      sortOption = { [`name.${isValidLanguage(language) ? language : "en"}`]: -1 };
     }
 
     const products = await Product.find(query)
