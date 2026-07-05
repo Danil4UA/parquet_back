@@ -9,6 +9,7 @@ import adminRoutes from "./routes/adminRoutes";
 import photoRoutes from "./routes/photoRoutes.js";
 import contactRoutes from "./routes/contactRoutes";
 import reviewsRoutes from "./routes/reviewsRoutes";
+import contentRoutes from "./routes/contentRoutes";
 
 connectDB();
 const app = express();
@@ -24,8 +25,8 @@ app.use(
     credentials: true,
     origin: (origin, callback) => {
       const allowedOrigins = [
-        // "http://localhost:3001",
-        process.env.FRONT_URL_RENDER, 
+        "http://localhost:3000",
+        process.env.FRONT_URL_RENDER,
         process.env.FRONT_URL_CUSTOM
       ];
 
@@ -45,6 +46,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/photos", photoRoutes);
 app.use("/api/reviews", reviewsRoutes);
+app.use("/api/content", contentRoutes);
 
 
 app.listen(PORT, () => {
