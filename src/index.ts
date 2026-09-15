@@ -1,5 +1,7 @@
 import express from "express";
-import "dotenv/config";
+// .env values win over anything inherited from the shell (e.g. a globally exported API key).
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 import cors from "cors";
 import connectDB from "./config/db";
 import productsRoutes from "./routes/productsRoutes";
@@ -10,6 +12,7 @@ import photoRoutes from "./routes/photoRoutes.js";
 import contactRoutes from "./routes/contactRoutes";
 import reviewsRoutes from "./routes/reviewsRoutes";
 import contentRoutes from "./routes/contentRoutes";
+import visualizerRoutes from "./routes/visualizerRoutes";
 
 connectDB();
 const app = express();
@@ -26,8 +29,8 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         // "http://localhost:3000",
-        process.env.FRONT_URL_RENDER,
-        process.env.FRONT_URL_CUSTOM
+        // process.env.FRONT_URL_RENDER,
+        // process.env.FRONT_URL_CUSTOM
       ];
 
       if (!origin || allowedOrigins.includes(origin)) {
@@ -47,6 +50,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/photos", photoRoutes);
 app.use("/api/reviews", reviewsRoutes);
 app.use("/api/content", contentRoutes);
+app.use("/api/visualizer", visualizerRoutes);
 
 
 app.listen(PORT, () => {
