@@ -29,8 +29,8 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         // "http://localhost:3000",
-        // process.env.FRONT_URL_RENDER,
-        // process.env.FRONT_URL_CUSTOM
+        process.env.FRONT_URL_RENDER,
+        process.env.FRONT_URL_CUSTOM
       ];
 
       if (!origin || allowedOrigins.includes(origin)) {
