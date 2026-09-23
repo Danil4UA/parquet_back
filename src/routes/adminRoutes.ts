@@ -34,5 +34,7 @@ router.delete("/visualizer/rooms/:id", authenticateToken, adminVisualizerControl
 router.post("/visualizer/render", authenticateToken, adminVisualizerController.render);
 router.post("/visualizer/renders/:id/regenerate", authenticateToken, adminVisualizerController.regenerate);
 router.delete("/visualizer/renders/:id", authenticateToken, adminVisualizerController.deleteRender);
+router.delete("/visualizer/customer-images", authenticateToken, adminVisualizerController.purgeCustomerImages);
+router.post("/visualizer/failures/acknowledge", authenticateToken, adminVisualizerController.acknowledgeFailures);
 
 export default router;

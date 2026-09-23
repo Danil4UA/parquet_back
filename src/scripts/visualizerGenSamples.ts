@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 dotenv.config({ override: true });
 import mongoose from "mongoose";
 import connectDB from "../config/db";
-import { createRoom } from "../services/visualizer";
+import { createSampleRoom } from "../services/visualizer";
 
 const ROOMS = [
   "Photo of an empty modern living room in an Israeli apartment, taken with a phone from standing height, daylight from a large window, white walls, old plain grey ceramic tile floor clearly visible, a sofa against the wall, no people, no text.",
@@ -32,7 +32,7 @@ const main = async () => {
   await connectDB();
   for (const prompt of ROOMS.slice(0, n)) {
     const img = await generate(prompt);
-    const doc = await createRoom(img, { isSample: true, source: "cli" });
+    const doc = await createSampleRoom(img, { source: "cli" });
     console.log("sample:", doc.roomUrl);
   }
   await mongoose.disconnect();

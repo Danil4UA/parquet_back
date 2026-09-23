@@ -8,7 +8,7 @@ dotenv.config({ override: true });
 import fs from "fs";
 import mongoose from "mongoose";
 import connectDB from "../config/db";
-import { createRoom } from "../services/visualizer";
+import { createSampleRoom } from "../services/visualizer";
 
 const main = async () => {
   const files = process.argv.slice(2);
@@ -18,7 +18,7 @@ const main = async () => {
   }
   await connectDB();
   for (const file of files) {
-    const doc = await createRoom(fs.readFileSync(file), { isSample: true, source: "cli" });
+    const doc = await createSampleRoom(fs.readFileSync(file), { source: "cli" });
     console.log("sample room:", doc.roomKey, doc.roomUrl);
   }
   await mongoose.disconnect();

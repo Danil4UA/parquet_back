@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import RoomVisualization from "../model/RoomVisualization";
-import { createRoom, renderRoom, getObjectStream } from "../services/visualizer";
+import { renderCustomerPhoto, renderRoom, getObjectStream } from "../services/visualizer";
+import { assertCanRender, RenderLimitError } from "../services/visualizer/limits";
 
 const MAX_UPLOAD_MB = 15;
 
+// The photo lives in memory only for the duration of the request; nothing is written to disk.
 export const roomUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 1 },
@@ -14,7 +16,7 @@ export const roomUpload = multer({
   },
 }).single("photo");
 
-/** Multer as middleware with a JSON error instead of the default HTML page. */
+/** Multer as middleware with a JSON error instead of the default HTML page. Non-multipart requests pass through. */
 export const roomUploadMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   roomUpload(req, res, (err: unknown) => {
     if (err) {
@@ -25,27 +27,29 @@ export const roomUploadMiddleware = (req: Request, res: Response, next: NextFunc
   });
 };
 
-// Simple global daily budget so a spike can't run up the bill (single-instance safe).
-let dailyCount = 0;
-let dailyStamp = new Date().toDateString();
-const dailyLimit = () => Number(process.env.VISUALIZER_DAILY_LIMIT || 300);
-const takeDailySlot = () => {
-  const today = new Date().toDateString();
-  if (today !== dailyStamp) { dailyStamp = today; dailyCount = 0; }
-  if (dailyCount >= dailyLimit()) return false;
-  dailyCount += 1;
-  return true;
+const publicRoom = (doc: { roomKey?: string; roomUrl?: string; title?: string }) => ({ roomKey: doc.roomKey, roomUrl: doc.roomUrl, title: doc.title });
+
+// Only sample rooms and their results are stored, so only those keys can be downloaded.
+const SAMPLE_ROOM_KEY_RE = /^rooms\/samples\/[0-9a-f-]{36}\.jpg$/;
+const SAMPLE_RESULT_KEY_RE = /^rooms\/samples\/[0-9a-f-]{36}(\/[0-9a-f]{24}(-[a-z0-9]+)?)?\.jpg$/;
+
+const sendError = (res: Response, err: unknown, fallback: string) => {
+  const e = err as { status?: number; message?: string };
+  const status = e?.status || 500;
+  if (status >= 500) console.error("[visualizer]", fallback, err);
+  if (err instanceof RenderLimitError) {
+    if (err.retryAfterSec) res.setHeader("Retry-After", String(err.retryAfterSec));
+    res.status(429).json({ success: false, code: err.code, message: err.message, retryAfterSec: err.retryAfterSec });
+    return;
+  }
+  res.status(status).json({ success: false, message: status >= 500 ? fallback : e.message });
 };
 
-const publicRoom = (doc: { roomKey: string; roomUrl: string; title?: string }) => ({ roomKey: doc.roomKey, roomUrl: doc.roomUrl, title: doc.title });
-
-const RESULT_KEY_RE = /^rooms\/(samples\/)?[0-9a-f-]{36}(\/[0-9a-f]{24}(-[a-z0-9]+)?)?\.jpg$/;
-
 export const visualizerController = {
-  /** GET /api/visualizer/download?key=rooms/...jpg&name=file.jpg — streams S3 with an attachment header. */
+  /** GET /api/visualizer/download?key=rooms/samples/...jpg&name=file.jpg — streams S3 with an attachment header. */
   download: async (req: Request, res: Response): Promise<void> => {
     const key = String(req.query.key || "");
-    if (!RESULT_KEY_RE.test(key)) {
+    if (!SAMPLE_RESULT_KEY_RE.test(key)) {
       res.status(400).json({ success: false, message: "Bad key" });
       return;
     }
@@ -63,54 +67,59 @@ export const visualizerController = {
     }
   },
 
-  /** POST /api/visualizer/rooms  (multipart field: photo) */
-  uploadRoom: async (req: Request, res: Response): Promise<void> => {
-    try {
-      if (!req.file) {
-        res.status(400).json({ success: false, message: "No photo" });
-        return;
-      }
-      const doc = await createRoom(req.file.buffer, { ip: req.ip, source: "customer" });
-      res.status(201).json({ success: true, room: publicRoom(doc) });
-    } catch (err) {
-      console.error("[visualizer] upload failed", err);
-      res.status(500).json({ success: false, message: "Upload failed" });
-    }
-  },
-
   /** GET /api/visualizer/samples */
   samples: async (_req: Request, res: Response): Promise<void> => {
     const docs = await RoomVisualization.find({ isSample: true, status: "room", isActive: { $ne: false } }).sort({ createdAt: 1 }).limit(12);
     res.json({ success: true, rooms: docs.map(publicRoom) });
   },
 
-  /** POST /api/visualizer/render  { roomKey, productId } */
+  /**
+   * POST /api/visualizer/render
+   *   multipart: photo (customer's room photo) + productId   → result returned inline, nothing stored
+   *   json/multipart: roomKey (sample room) + productId       → result cached in S3
+   */
   render: async (req: Request, res: Response): Promise<void> => {
-    const { roomKey, productId } = req.body || {};
-    if (typeof roomKey !== "string" || typeof productId !== "string") {
-      res.status(400).json({ success: false, message: "roomKey and productId are required" });
+    const productId = typeof req.body?.productId === "string" ? req.body.productId : "";
+    const roomKey = typeof req.body?.roomKey === "string" ? req.body.roomKey : "";
+    const photo = req.file?.buffer;
+
+    if (!/^[0-9a-f]{24}$/.test(productId)) {
+      res.status(400).json({ success: false, message: "productId is required" });
       return;
     }
-    if (!/^rooms\/(samples\/)?[0-9a-f-]{36}\.jpg$/.test(roomKey)) {
-      res.status(400).json({ success: false, message: "Bad roomKey" });
+    if (!photo && !SAMPLE_ROOM_KEY_RE.test(roomKey)) {
+      res.status(400).json({ success: false, message: "Send a photo or a sample roomKey" });
       return;
     }
+
     try {
-      const cached = await RoomVisualization.findOne({ roomKey, productId, status: "done" });
-      if (!cached && !takeDailySlot()) {
-        res.status(429).json({ success: false, message: "Daily limit reached, try again tomorrow" });
+      if (photo) {
+        // Per-IP and global limits, persisted in the database (see services/visualizer/limits.ts).
+        await assertCanRender(req.ip);
+        const out = await renderCustomerPhoto(photo, productId, { ip: req.ip });
+        res.setHeader("Cache-Control", "no-store");
+        res.json({
+          success: true,
+          result: {
+            image: `data:${out.mime};base64,${out.image.toString("base64")}`,
+            productId,
+            durationMs: out.durationMs,
+            cached: out.cached,
+            stored: false,
+          },
+        });
         return;
       }
+
+      const cached = await RoomVisualization.findOne({ roomKey, productId, status: "done" });
+      if (!cached) await assertCanRender(req.ip); // a cached sample result is free, no limit applies
       const doc = cached || (await renderRoom(roomKey, productId, { ip: req.ip, source: "customer" }));
       res.json({
         success: true,
-        result: { resultUrl: doc.resultUrl, resultKey: doc.resultKey, roomUrl: doc.roomUrl, productId, durationMs: doc.durationMs, cached: !!cached },
+        result: { resultUrl: doc.resultUrl, resultKey: doc.resultKey, roomUrl: doc.roomUrl, productId, durationMs: doc.durationMs, cached: !!cached, stored: true },
       });
-    } catch (err: unknown) {
-      const e = err as { status?: number; message?: string };
-      const status = e?.status || 500;
-      if (status >= 500) console.error("[visualizer] render failed", err);
-      res.status(status).json({ success: false, message: status >= 500 ? "Render failed" : e.message });
+    } catch (err) {
+      sendError(res, err, "Render failed");
     }
   },
 };

@@ -2,7 +2,17 @@ import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import Product from "../model/Product";
 import RoomVisualization from "../model/RoomVisualization";
-import { createRoom, renderRoom, regenerateRender, deleteRender, deleteRoom, generateSampleImage, DEFAULT_SAMPLE_PROMPT } from "../services/visualizer";
+import {
+  createSampleRoom,
+  renderRoom,
+  regenerateRender,
+  deleteRender,
+  deleteRoom,
+  generateSampleImage,
+  purgeStoredCustomerImages,
+  DEFAULT_SAMPLE_PROMPT,
+} from "../services/visualizer";
+import { getVisualizerStats } from "../services/visualizer/stats";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } }).single("photo");
 export const sampleUploadMiddleware = (req: Request, res: Response, next: NextFunction): void => {
@@ -37,27 +47,19 @@ const withProducts = async (docs: { productId?: string }[]) => {
 };
 
 const adminVisualizerController = {
+  /** GET /stats — dashboard numbers, recent failures, warnings and the active configuration. */
   stats: async (_req: Request, res: Response): Promise<void> => {
     try {
-      const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-      const [samples, customerRooms, done, failed, today, avg] = await Promise.all([
-        RoomVisualization.countDocuments({ status: "room", isSample: true }),
-        RoomVisualization.countDocuments({ status: "room", isSample: false }),
-        RoomVisualization.countDocuments({ status: "done" }),
-        RoomVisualization.countDocuments({ status: "failed" }),
-        RoomVisualization.countDocuments({ status: { $in: ["done", "failed"] }, createdAt: { $gte: startOfDay } }),
-        RoomVisualization.aggregate([{ $match: { status: "done", durationMs: { $gt: 0 } } }, { $group: { _id: null, ms: { $avg: "$durationMs" } } }]),
-      ]);
-      res.json({ success: true, stats: { samples, customerRooms, done, failed, today, avgDurationMs: Math.round(avg[0]?.ms || 0), dailyLimit: Number(process.env.VISUALIZER_DAILY_LIMIT || 300) } });
+      const stats = await getVisualizerStats();
+      res.json({ success: true, stats: { ...stats, recentFailures: await withProducts(stats.recentFailures) } });
     } catch (err) { fail(res, err, "Cannot load stats"); }
   },
 
-  /** GET /rooms?type=sample|customer&page&limit */
+  /** GET /rooms?page&limit — sample rooms (customer photos are no longer stored). */
   rooms: async (req: Request, res: Response): Promise<void> => {
     try {
       const { page, limit, skip } = pageParams(req);
-      const isSample = req.query.type !== "customer";
-      const filter = { status: "room", isSample };
+      const filter = { status: "room", isSample: true };
       const [rooms, total] = await Promise.all([
         RoomVisualization.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
         RoomVisualization.countDocuments(filter),
@@ -76,13 +78,15 @@ const adminVisualizerController = {
     } catch (err) { fail(res, err, "Cannot load rooms"); }
   },
 
-  /** GET /renders?roomKey&status&page&limit */
+  /** GET /renders?roomKey&status&kind=customer|sample&page&limit */
   renders: async (req: Request, res: Response): Promise<void> => {
     try {
       const { page, limit, skip } = pageParams(req);
       const filter: Record<string, unknown> = { status: { $ne: "room" } };
       if (typeof req.query.roomKey === "string" && req.query.roomKey) filter.roomKey = req.query.roomKey;
       if (typeof req.query.status === "string" && ["done", "failed", "pending"].includes(req.query.status)) filter.status = req.query.status;
+      if (req.query.kind === "customer") filter.isSample = false;
+      if (req.query.kind === "sample") filter.isSample = true;
       const [docs, total] = await Promise.all([
         RoomVisualization.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
         RoomVisualization.countDocuments(filter),
@@ -95,7 +99,7 @@ const adminVisualizerController = {
   uploadSample: async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.file) { res.status(400).json({ success: false, message: "No photo" }); return; }
-      const doc = await createRoom(req.file.buffer, { isSample: true, title: String(req.body?.title || "").slice(0, 80) || undefined, source: "admin" });
+      const doc = await createSampleRoom(req.file.buffer, { title: String(req.body?.title || "").slice(0, 80) || undefined, source: "admin" });
       res.status(201).json({ success: true, room: doc });
     } catch (err) { fail(res, err, "Upload failed"); }
   },
@@ -105,7 +109,7 @@ const adminVisualizerController = {
     try {
       const prompt = String(req.body?.prompt || DEFAULT_SAMPLE_PROMPT).slice(0, 2000);
       const image = await generateSampleImage(prompt);
-      const doc = await createRoom(image, { isSample: true, title: String(req.body?.title || "").slice(0, 80) || undefined, source: "admin" });
+      const doc = await createSampleRoom(image, { title: String(req.body?.title || "").slice(0, 80) || undefined, source: "admin" });
       res.status(201).json({ success: true, room: doc, prompt });
     } catch (err) { fail(res, err, "Generation failed"); }
   },
@@ -126,7 +130,7 @@ const adminVisualizerController = {
     try { await deleteRoom(req.params.id); res.json({ success: true }); } catch (err) { fail(res, err, "Delete failed"); }
   },
 
-  /** POST /render { roomKey, productId, force? } — admin render, no public limits. */
+  /** POST /render { roomKey, productId, force? } — admin render of a sample room, no public limits. */
   render: async (req: Request, res: Response): Promise<void> => {
     try {
       const { roomKey, productId, force } = req.body || {};
@@ -145,6 +149,25 @@ const adminVisualizerController = {
 
   deleteRender: async (req: Request, res: Response): Promise<void> => {
     try { await deleteRender(req.params.id); res.json({ success: true }); } catch (err) { fail(res, err, "Delete failed"); }
+  },
+
+  /** POST /failures/acknowledge { ids?: string[] } — hides errors from the dashboard (records and counters stay). */
+  acknowledgeFailures: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id: unknown) => typeof id === "string") : null;
+      const filter: Record<string, unknown> = { status: "failed" };
+      if (ids && ids.length > 0) filter._id = { $in: ids };
+      const result = await RoomVisualization.updateMany(filter, { $set: { acknowledged: true } });
+      res.json({ success: true, acknowledged: result.modifiedCount });
+    } catch (err) { fail(res, err, "Update failed"); }
+  },
+
+  /** DELETE /customer-images — one-time cleanup of customer photos stored before the privacy change. */
+  purgeCustomerImages: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await purgeStoredCustomerImages();
+      res.json({ success: true, ...result });
+    } catch (err) { fail(res, err, "Cleanup failed"); }
   },
 };
 

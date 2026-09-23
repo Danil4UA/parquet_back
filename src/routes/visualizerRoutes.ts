@@ -4,12 +4,12 @@ import { roomUploadMiddleware, visualizerController } from "../controllers/visua
 
 const router = express.Router();
 
-const uploadLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false });
-const renderLimiter = rateLimit({ windowMs: 24 * 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+// Cheap flood guard on raw requests (in memory). The real per-IP and daily limits on paid
+// generations are persisted in the database, see services/visualizer/limits.ts.
+const renderLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
 router.get("/samples", visualizerController.samples);
 router.get("/download", visualizerController.download);
-router.post("/rooms", uploadLimiter, roomUploadMiddleware, visualizerController.uploadRoom);
-router.post("/render", renderLimiter, visualizerController.render);
+router.post("/render", renderLimiter, roomUploadMiddleware, visualizerController.render);
 
 export default router;
