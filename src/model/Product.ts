@@ -27,6 +27,9 @@ export interface IProductSchema {
   length?: number;
   thickness?: number;
   recommendedProducts?: string[];
+  // True when the product has a photo of a finished interior (a room laid with this floor).
+  // Such products are shown first in the catalog.
+  hasInteriorPhoto?: boolean;
 }
 
 const LocalizedStringSchema = {
@@ -48,7 +51,7 @@ const ProductSchema: Schema = new Schema(
     },
     detailedDescription: {
       type: LocalizedStringSchema,
-      require: true
+      required: true
     },
     price: { type: Number, required: true },
     images: { type: [String], required: true },
@@ -66,7 +69,8 @@ const ProductSchema: Schema = new Schema(
     width: { type: Number, required: false },
     length: { type: Number, required: false },
     thickness: { type: Number, required: false },
-    recommendedProducts: { type: [String], default: [] }
+    recommendedProducts: { type: [String], default: [] },
+    hasInteriorPhoto: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
