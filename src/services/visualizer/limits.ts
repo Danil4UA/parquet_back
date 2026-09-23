@@ -31,11 +31,20 @@ export class RenderLimitError extends Error {
 
 export const dailyLimit = () => Number(process.env.VISUALIZER_DAILY_LIMIT || 300);
 
+/** Development switch: VISUALIZER_SKIP_LIMITS=true turns every limit off. Never set it in production. */
+export const limitsDisabled = () => process.env.VISUALIZER_SKIP_LIMITS === "true";
+
+// Requests from the machine itself (local `npm run dev`) are never limited.
+const isLoopback = (ip?: string) => !!ip && /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(ip);
+
 const paidStatuses = ["pending", "done", "failed"];
 
 /** Paid customer generations started today (done + failed + in flight). Used for the daily budget. */
+// Uploads rejected before reaching the AI (errorKind "image") cost nothing and don't count.
+const paidFilter = { source: "customer", status: { $in: paidStatuses }, errorKind: { $ne: "image" } };
+
 export const customerRendersToday = () =>
-  RoomVisualization.countDocuments({ source: "customer", status: { $in: paidStatuses }, createdAt: { $gte: startOfTodayInShopTz() } });
+  RoomVisualization.countDocuments({ ...paidFilter, createdAt: { $gte: startOfTodayInShopTz() } });
 
 export const ipLimit = () => Math.max(1, Number(process.env.VISUALIZER_IP_LIMIT || 10));
 export const ipWindowMs = () => Math.max(0.1, Number(process.env.VISUALIZER_IP_WINDOW_HOURS || 6)) * 60 * 60 * 1000;
@@ -45,6 +54,7 @@ const IN_FLIGHT_MAX_AGE_MS = 3 * 60 * 1000;
 
 /** Throws RenderLimitError when `ip` may not start a paid generation right now. */
 export const assertCanRender = async (ip?: string): Promise<void> => {
+  if (limitsDisabled() || isLoopback(ip)) return;
   if (ip) {
     const inFlight = await RoomVisualization.countDocuments({
       ip,
@@ -57,7 +67,7 @@ export const assertCanRender = async (ip?: string): Promise<void> => {
     }
 
     const windowStart = new Date(Date.now() - ipWindowMs());
-    const recent = await RoomVisualization.find({ ip, source: "customer", status: { $in: paidStatuses }, createdAt: { $gte: windowStart } })
+    const recent = await RoomVisualization.find({ ...paidFilter, ip, createdAt: { $gte: windowStart } })
       .sort({ createdAt: 1 })
       .select("createdAt")
       .lean();
@@ -76,7 +86,7 @@ export const assertCanRender = async (ip?: string): Promise<void> => {
 /** IPs with the most paid generations since `since` (for the admin dashboard). */
 export const topIps = async (since: Date, limit = 5) =>
   RoomVisualization.aggregate<{ _id: string; count: number; failed: number }>([
-    { $match: { source: "customer", status: { $in: paidStatuses }, createdAt: { $gte: since }, ip: { $exists: true, $ne: null } } },
+    { $match: { ...paidFilter, createdAt: { $gte: since }, ip: { $exists: true, $ne: null } } },
     { $group: { _id: "$ip", count: { $sum: 1 }, failed: { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } } } },
     { $sort: { count: -1 } },
     { $limit: limit },

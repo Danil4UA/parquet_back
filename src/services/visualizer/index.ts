@@ -6,7 +6,7 @@ import s3Client from "../../config/s3";
 import Product, { IProductSchema } from "../../model/Product";
 import RoomVisualization, { IRoomVisualization, RenderErrorKind } from "../../model/RoomVisualization";
 import { buildFloorPrompt } from "./prompt";
-import { renderWithOpenAI, RenderOutput, openAIConfig } from "./providers/openaiProvider";
+import { renderWithOpenAI, RenderOutput, openAIConfig, ProviderCanvas } from "./providers/openaiProvider";
 import { estimateCostUsd } from "./pricing";
 
 /*
@@ -69,9 +69,31 @@ const fetchBuffer = async (url: string): Promise<{ buffer: Buffer; mime: string 
   return { buffer: Buffer.from(await res.arrayBuffer()), mime };
 };
 
+// HEIC/HEIF (iPhone photos) use the HEVC codec, which the bundled libvips cannot decode.
+// The container starts with "....ftyp" followed by a brand such as heic, heix, hevc, mif1, msf1.
+const isHeif = (buf: Buffer) => buf.length > 12 && buf.toString("ascii", 4, 8) === "ftyp" && /^(heic|heix|hevc|hevx|heim|heis|mif1|msf1)$/.test(buf.toString("ascii", 8, 12));
+
+/** Decodes HEIC/HEIF to JPEG with the pure-JS libheif build (slow-ish, ~1–3 s, but works everywhere). */
+const heifToJpeg = async (input: Buffer): Promise<Buffer> => {
+  const { default: convert } = await import("heic-convert");
+  const out = await convert({ buffer: input, format: "JPEG", quality: 0.92 });
+  return Buffer.isBuffer(out) ? out : Buffer.from(out as ArrayBuffer);
+};
+
+const normalise = (input: Buffer, maxSide: number) =>
+  sharp(input).rotate().resize({ width: maxSide, height: maxSide, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
+
 /** Normalises a photo: fixes EXIF rotation, caps the size, re-encodes as JPEG (this also strips EXIF/GPS metadata). */
-export const prepareRoomImage = async (input: Buffer): Promise<Buffer> =>
-  sharp(input).rotate().resize({ width: ROOM_MAX_SIDE, height: ROOM_MAX_SIDE, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
+export const prepareRoomImage = async (input: Buffer): Promise<Buffer> => {
+  if (isHeif(input)) return normalise(await heifToJpeg(input), ROOM_MAX_SIDE);
+  try {
+    return await normalise(input, ROOM_MAX_SIDE);
+  } catch (err) {
+    // Some HEIF files carry unusual brands; give the decoder one more chance before giving up.
+    if (input.toString("ascii", 4, 8) === "ftyp") return normalise(await heifToJpeg(input), ROOM_MAX_SIDE);
+    throw err;
+  }
+};
 
 const prepareReference = async (input: Buffer): Promise<Buffer> =>
   sharp(input).rotate().resize({ width: REF_MAX_SIDE, height: REF_MAX_SIDE, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
@@ -132,10 +154,72 @@ export const classifyError = (err: unknown): RenderErrorKind => {
   return "internal";
 };
 
+/* ------------------------------ framing ------------------------------
+ * The provider only outputs 3:2, 2:3 or 1:1 canvases, while phones shoot 4:3. Instead of
+ * cropping the customer's photo we pad it to the nearest canvas with mirrored edges, let the
+ * model work on the padded picture, then cut the original frame back out of the result.
+ * The shopper gets their whole photo back, in its own aspect ratio, nothing lost.
+ */
+interface Framing {
+  image: Buffer;          // padded image sent to the provider
+  size: ProviderCanvas;
+  paddedWidth: number;
+  paddedHeight: number;
+  left: number;           // where the original sits inside the padded image
+  top: number;
+  width: number;
+  height: number;
+}
+
+const CANVASES: { size: ProviderCanvas; ratio: number }[] = [
+  { size: "1536x1024", ratio: 1.5 },
+  { size: "1024x1536", ratio: 2 / 3 },
+  { size: "1024x1024", ratio: 1 },
+];
+
+export const fitToProviderCanvas = async (input: Buffer): Promise<Framing> => {
+  const { width, height } = await sharp(input).metadata();
+  if (!width || !height) throw new Error("Cannot read image size");
+  const ratio = width / height;
+  // Nearest canvas by the amount of padding needed (compare log-ratios so 4:3 and 3:4 are symmetric).
+  const canvas = CANVASES.reduce((best, c) => (Math.abs(Math.log(c.ratio / ratio)) < Math.abs(Math.log(best.ratio / ratio)) ? c : best));
+
+  let paddedWidth = width;
+  let paddedHeight = height;
+  if (ratio < canvas.ratio) paddedWidth = Math.round(height * canvas.ratio);
+  else paddedHeight = Math.round(width / canvas.ratio);
+  const left = Math.floor((paddedWidth - width) / 2);
+  const top = Math.floor((paddedHeight - height) / 2);
+
+  const image =
+    paddedWidth === width && paddedHeight === height
+      ? input
+      : await sharp(input)
+          .extend({ left, right: paddedWidth - width - left, top, bottom: paddedHeight - height - top, extendWith: "mirror" })
+          .jpeg({ quality: 88 })
+          .toBuffer();
+
+  return { image, size: canvas.size, paddedWidth, paddedHeight, left, top, width, height };
+};
+
+/** Cuts the original photo's frame back out of the provider's result. */
+export const restoreFraming = async (result: Buffer, framing: Framing): Promise<Buffer> => {
+  if (framing.left === 0 && framing.top === 0 && framing.paddedWidth === framing.width && framing.paddedHeight === framing.height) return result;
+  const meta = await sharp(result).metadata();
+  const sx = (meta.width || framing.paddedWidth) / framing.paddedWidth;
+  const sy = (meta.height || framing.paddedHeight) / framing.paddedHeight;
+  const left = Math.round(framing.left * sx);
+  const top = Math.round(framing.top * sy);
+  const width = Math.min(Math.round(framing.width * sx), (meta.width || 0) - left);
+  const height = Math.min(Math.round(framing.height * sy), (meta.height || 0) - top);
+  return sharp(result).extract({ left, top, width, height }).jpeg({ quality: 90 }).toBuffer();
+};
+
 /** Calls the AI provider for one (room image, product) pair. No storage involved. */
 const runRender = async (roomImage: Buffer, product: IProductSchema): Promise<RenderOutput> => {
   const render = providers[providerName()];
   if (!render) throw new Error(`Unknown visualizer provider: ${providerName()}`);
+  const framing = await fitToProviderCanvas(roomImage);
 
   const refs = await Promise.all(product.images.slice(0, REFERENCE_IMAGES).map((url) => fetchBuffer(url)));
   const referenceImages = await Promise.all(refs.map(async (r) => ({ buffer: await prepareReference(r.buffer), mime: "image/jpeg" })));
@@ -150,7 +234,8 @@ const runRender = async (roomImage: Buffer, product: IProductSchema): Promise<Re
     length: product.length,
   });
 
-  return render({ roomImage, roomMime: "image/jpeg", referenceImages, prompt });
+  const out = await render({ roomImage: framing.image, roomMime: "image/jpeg", referenceImages, prompt, size: framing.size });
+  return { ...out, image: await restoreFraming(out.image, framing) };
 };
 
 /** Fills a render record from the provider output. */
@@ -202,6 +287,25 @@ export interface CustomerRenderResult {
   cached: boolean;
 }
 
+/** Writes a failed record for an upload that never reached the AI (bad file, too large), so the admin can see it. */
+export const recordRejectedUpload = async (message: string, ip?: string, productId?: string) => {
+  try {
+    await RoomVisualization.create({
+      isSample: false,
+      productId,
+      provider: providerName(),
+      status: "failed",
+      errorKind: "image",
+      error: message.slice(0, 1000),
+      durationMs: 0,
+      ip,
+      source: "customer",
+    });
+  } catch (e) {
+    console.warn("[visualizer] cannot record rejected upload", e);
+  }
+};
+
 /**
  * Renders a product floor into a customer's photo without storing the photo or the result.
  * Only a statistics record (no images) is written to the database.
@@ -212,6 +316,9 @@ export const renderCustomerPhoto = async (photo: Buffer, productId: string, opts
   try {
     prepared = await prepareRoomImage(photo);
   } catch (err) {
+    const detail = String((err as Error)?.message || err);
+    console.warn("[visualizer] cannot decode photo:", detail, { ip: opts.ip, bytes: photo.length });
+    await recordRejectedUpload(`Cannot decode photo (${photo.length} bytes): ${detail}`, opts.ip, productId);
     throw Object.assign(new Error("Unsupported or corrupt image"), { status: 400, kind: "image" as RenderErrorKind });
   }
 

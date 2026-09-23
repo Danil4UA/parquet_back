@@ -5,7 +5,7 @@
 import RoomVisualization from "../../model/RoomVisualization";
 import { countStoredCustomerImages, visualizerConfig } from "./index";
 import { priceForModel } from "./pricing";
-import { customerRendersToday, dailyLimit, ipLimit, ipWindowMs, topIps } from "./limits";
+import { customerRendersToday, dailyLimit, ipLimit, ipWindowMs, limitsDisabled, topIps } from "./limits";
 import { startOfTodayInShopTz } from "./time";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,6 +54,7 @@ export const getVisualizerStats = async () => {
   const avgCostUsd = allTime.done ? Math.round((allTime.costUsd / allTime.done) * 1000) / 1000 : null;
 
   const warnings: string[] = [];
+  if (limitsDisabled()) warnings.push("All generation limits are OFF (VISUALIZER_SKIP_LIMITS=true). Fine for development, dangerous in production.");
   if (!process.env.OPENAI_API_KEY) warnings.push("OPENAI_API_KEY is not set — every generation will fail.");
   if (!priceForModel(config.model)) warnings.push(`No price known for model "${config.model}" — cost estimates will be empty.`);
   if (todayUsed >= dailyLimit()) warnings.push(`Daily limit reached (${todayUsed}/${dailyLimit()}). Shoppers see "try again tomorrow" until midnight.`);

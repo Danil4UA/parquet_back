@@ -12,11 +12,15 @@
  */
 import { IRenderUsage } from "../../../model/RoomVisualization";
 
+export type ProviderCanvas = "1536x1024" | "1024x1536" | "1024x1024";
+
 export interface RenderInput {
   roomImage: Buffer;
   roomMime: string;
   referenceImages: { buffer: Buffer; mime: string }[];
   prompt: string;
+  /** Output canvas; the room image is expected to already have this aspect ratio. */
+  size?: ProviderCanvas;
 }
 
 export interface RenderOutput {
@@ -65,7 +69,7 @@ export const renderWithOpenAI = async (input: RenderInput): Promise<RenderOutput
   form.append("model", model);
   form.append("prompt", input.prompt);
   form.append("quality", quality);
-  form.append("size", "auto");
+  form.append("size", input.size ?? "auto");
   form.append("output_format", "jpeg");
   if (supportsInputFidelity(model)) form.append("input_fidelity", inputFidelity);
   // First image = the room to edit, then references.

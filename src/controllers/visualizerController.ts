@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import RoomVisualization from "../model/RoomVisualization";
-import { renderCustomerPhoto, renderRoom, getObjectStream } from "../services/visualizer";
+import { renderCustomerPhoto, renderRoom, getObjectStream, prepareRoomImage } from "../services/visualizer";
 import { assertCanRender, RenderLimitError } from "../services/visualizer/limits";
+import { recordRejectedUpload } from "../services/visualizer";
 
-const MAX_UPLOAD_MB = 15;
+const MAX_UPLOAD_MB = 25;
 
 // The photo lives in memory only for the duration of the request; nothing is written to disk.
 export const roomUpload = multer({
@@ -16,11 +17,18 @@ export const roomUpload = multer({
   },
 }).single("photo");
 
-/** Multer as middleware with a JSON error instead of the default HTML page. Non-multipart requests pass through. */
+/**
+ * Multer as middleware with a JSON error instead of the default HTML page. Non-multipart requests pass through.
+ * A rejected upload (too large, wrong type) is recorded as a failed generation so it shows up in the admin dashboard.
+ */
 export const roomUploadMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   roomUpload(req, res, (err: unknown) => {
     if (err) {
-      res.status(400).json({ success: false, message: err instanceof Error ? err.message : "Upload failed" });
+      const message = err instanceof Error ? err.message : "Upload failed";
+      const productId = typeof req.body?.productId === "string" ? req.body.productId : undefined;
+      console.warn("[visualizer] upload rejected:", message, { ip: req.ip, productId, contentLength: req.headers["content-length"] });
+      void recordRejectedUpload(message, req.ip, productId);
+      res.status(400).json({ success: false, message });
       return;
     }
     next();
@@ -64,6 +72,29 @@ export const visualizerController = {
     } catch (err) {
       console.error("[visualizer] download failed", err);
       res.status(404).json({ success: false, message: "File not found" });
+    }
+  },
+
+  /**
+   * POST /api/visualizer/prepare (multipart: photo) → image/jpeg
+   * Converts a photo the browser cannot decode itself (HEIC from an iPhone opened on a desktop)
+   * into a resized, upright JPEG. No AI call, nothing stored, nothing counted against limits.
+   */
+  prepare: async (req: Request, res: Response): Promise<void> => {
+    const photo = req.file?.buffer;
+    if (!photo) {
+      res.status(400).json({ success: false, message: "No photo" });
+      return;
+    }
+    try {
+      const jpeg = await prepareRoomImage(photo);
+      res.setHeader("Cache-Control", "no-store");
+      res.type("image/jpeg").send(jpeg);
+    } catch (err) {
+      const detail = String((err as Error)?.message || err);
+      console.warn("[visualizer] cannot decode photo for preview:", detail, { ip: req.ip, bytes: photo.length });
+      void recordRejectedUpload(`Cannot decode photo (${photo.length} bytes): ${detail}`, req.ip, typeof req.body?.productId === "string" ? req.body.productId : undefined);
+      res.status(400).json({ success: false, message: "Unsupported or corrupt image" });
     }
   },
 
