@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import RoomVisualization from "../model/RoomVisualization";
+import Product from "../model/Product";
+import { localizeProduct, resolveLanguage } from "../utils/productUtils";
 import { renderCustomerPhoto, renderRoom, getObjectStream, prepareRoomImage } from "../services/visualizer";
 import { assertCanRender, RenderLimitError } from "../services/visualizer/limits";
 import { recordRejectedUpload } from "../services/visualizer";
@@ -96,6 +98,29 @@ export const visualizerController = {
       void recordRejectedUpload(`Cannot decode photo (${photo.length} bytes): ${detail}`, req.ip, typeof req.body?.productId === "string" ? req.body.productId : undefined);
       res.status(400).json({ success: false, message: "Unsupported or corrupt image" });
     }
+  },
+
+  /** GET /api/visualizer/showcase?id= — the sample-room render the admin picked for the home page "before/after" demo. */
+  showcase: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const language = resolveLanguage(_req.query.language);
+      const wanted = typeof _req.query.id === "string" && /^[0-9a-f]{24}$/.test(_req.query.id) ? _req.query.id : null;
+      const render = wanted
+        ? await RoomVisualization.findOne({ _id: wanted, isSample: true, status: "done", resultUrl: { $exists: true }, roomUrl: { $exists: true } }).lean()
+        : null;
+      if (!render) { res.json({ success: true, showcase: null }); return; }
+      const product = render.productId ? await Product.findById(render.productId).lean() : null;
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.json({
+        success: true,
+        showcase: {
+          _id: String(render._id),
+          roomUrl: render.roomUrl,
+          resultUrl: render.resultUrl,
+          product: product ? { _id: String(product._id), name: localizeProduct(product, language).name, category: product.category } : null,
+        },
+      });
+    } catch (err) { sendError(res, err, "Cannot load showcase"); }
   },
 
   /** GET /api/visualizer/samples */

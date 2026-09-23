@@ -10,6 +10,7 @@ const router = express.Router();
 const renderLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, skip: () => limitsDisabled() });
 
 router.get("/samples", visualizerController.samples);
+router.get("/showcase", visualizerController.showcase);
 router.get("/download", visualizerController.download);
 router.post("/render", renderLimiter, roomUploadMiddleware, visualizerController.render);
 // Cheap CPU work, no AI: a looser flood guard is enough.

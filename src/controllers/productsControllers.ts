@@ -48,6 +48,46 @@ const productsControllers = {
     }
   },
 
+  // Products by id, in the order the ids were given (home page sections picked by the admin).
+  getProductsByIds: async (req: Request, res: Response) => {
+    try {
+      const language = resolveLanguage(req.query.language);
+      const ids = String(req.query.ids || "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => mongoose.isValidObjectId(id))
+        .slice(0, 24);
+      if (ids.length === 0) {
+        res.status(200).json({ products: [] });
+        return;
+      }
+      const docs = await Product.find({ _id: { $in: ids } }).lean();
+      const byId = new Map(docs.map((doc) => [String(doc._id), doc]));
+      const products = ids.map((id) => byId.get(id)).filter(Boolean).map((doc) => localizeProduct(doc, language));
+      res.status(200).json({ products });
+    } catch (error) {
+      console.error("Error fetching products by ids:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  // Per-category count and lowest price after discount (home page tiles: "from ₪59/m²").
+  getCategoriesSummary: async (_req: Request, res: Response) => {
+    try {
+      const rows = await Product.aggregate<{ _id: string; count: number; minPrice: number }>([
+        { $match: { isAvailable: { $ne: false }, price: { $gt: 0 } } },
+        { $addFields: { effectivePrice: { $multiply: ["$price", { $subtract: [1, { $divide: [{ $ifNull: ["$discount", 0] }, 100] }] }] } } },
+        { $group: { _id: "$category", count: { $sum: 1 }, minPrice: { $min: "$effectivePrice" } } },
+        { $sort: { _id: 1 } },
+      ]);
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.status(200).json({ categories: rows.map((r) => ({ category: r._id, count: r.count, minPrice: Math.round(r.minPrice) })) });
+    } catch (error) {
+      console.error("Error fetching categories summary:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
   getFilterOptions: async (req: Request, res: Response) => {
     try {
       const [colors, types, categories] = await Promise.all([
