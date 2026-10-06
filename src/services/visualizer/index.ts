@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import s3Client from "../../config/s3";
 import Product, { IProductSchema } from "../../model/Product";
 import RoomVisualization, { IRoomVisualization, RenderErrorKind } from "../../model/RoomVisualization";
-import { buildFloorPrompt } from "./prompt";
+import { buildPrompt, visualizerSurface } from "./prompt";
 import { renderWithOpenAI, RenderOutput, openAIConfig, ProviderCanvas } from "./providers/openaiProvider";
 import { estimateCostUsd } from "./pricing";
 
@@ -215,6 +215,13 @@ export const restoreFraming = async (result: Buffer, framing: Framing): Promise<
   return sharp(result).extract({ left, top, width, height }).jpeg({ quality: 90 }).toBuffer();
 };
 
+/** Skirting boards and cleaning products have nothing to show on a room photo: refused before any paid work. */
+const assertVisualizable = (product: IProductSchema) => {
+  if (visualizerSurface(product.category) === null) {
+    throw Object.assign(new Error("This product cannot be shown in a room photo"), { status: 400, code: "unsupported" });
+  }
+};
+
 /** Calls the AI provider for one (room image, product) pair. No storage involved. */
 const runRender = async (roomImage: Buffer, product: IProductSchema): Promise<RenderOutput> => {
   const render = providers[providerName()];
@@ -223,7 +230,7 @@ const runRender = async (roomImage: Buffer, product: IProductSchema): Promise<Re
 
   const refs = await Promise.all(product.images.slice(0, REFERENCE_IMAGES).map((url) => fetchBuffer(url)));
   const referenceImages = await Promise.all(refs.map(async (r) => ({ buffer: await prepareReference(r.buffer), mime: "image/jpeg" })));
-  const prompt = buildFloorPrompt({
+  const prompt = buildPrompt({
     name: product.name?.en || (product.name as unknown as string),
     category: product.category,
     color: product.color,
@@ -328,6 +335,7 @@ export const renderCustomerPhoto = async (photo: Buffer, productId: string, opts
 
   const product = await Product.findById(productId);
   if (!product) throw Object.assign(new Error("Product not found"), { status: 404 });
+  assertVisualizable(product);
 
   const record = await RoomVisualization.create({
     isSample: false,
@@ -365,6 +373,7 @@ export const renderRoom = async (roomKey: string, productId: string, opts: { ip?
 
   const product = await Product.findById(productId);
   if (!product) throw Object.assign(new Error("Product not found"), { status: 404 });
+  assertVisualizable(product);
 
   const record = await RoomVisualization.create({
     roomKey,

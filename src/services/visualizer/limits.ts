@@ -4,7 +4,7 @@
  * makes them survive restarts and work across several server instances.
  *
  *   1. One generation at a time per IP  — a spammer can't fire 30 requests in parallel.
- *   2. Per-IP rolling window            — VISUALIZER_IP_LIMIT (default 10) per
+ *   2. Per-IP rolling window            — VISUALIZER_IP_LIMIT (default 50) per
  *                                         VISUALIZER_IP_WINDOW_HOURS (default 6).
  *   3. Global daily budget              — VISUALIZER_DAILY_LIMIT (default 300) per shop day.
  *
@@ -46,7 +46,7 @@ const paidFilter = { source: "customer", status: { $in: paidStatuses }, errorKin
 export const customerRendersToday = () =>
   RoomVisualization.countDocuments({ ...paidFilter, createdAt: { $gte: startOfTodayInShopTz() } });
 
-export const ipLimit = () => Math.max(1, Number(process.env.VISUALIZER_IP_LIMIT || 10));
+export const ipLimit = () => Math.max(1, Number(process.env.VISUALIZER_IP_LIMIT || 50));
 export const ipWindowMs = () => Math.max(0.1, Number(process.env.VISUALIZER_IP_WINDOW_HOURS || 6)) * 60 * 60 * 1000;
 
 // A "pending" record older than this is a crashed/abandoned render, not a live one.
